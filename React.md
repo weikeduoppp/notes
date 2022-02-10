@@ -1655,7 +1655,7 @@ function App() {
 ReactDOM.render(<App />, document.getElementById("root"));
 ```
 
-对应的`Fiber树`结构： ![Fiber架构](https://react.iamkasong.com/img/fiber.png)
+对应的`Fiber树`结构： ![Fiber架构](https://images.yewq.top/uPic/fiber.png)
 
 `render阶段`会依次执行：
 
@@ -1689,7 +1689,7 @@ beginWork
 
 > 答案十分巧妙, 假设mountChildFibers也会赋值effectTag，那么可以预见mount时整棵Fiber树所有节点都会有Placement effectTag。那么commit阶段在执行DOM操作时每个节点都会执行一次插入操作，这样大量的DOM操作是极低效的。 为了解决这个问题，在mount时只有rootFiber会赋值Placement effectTag，在commit阶段只会执行一次插入操作。
 
-![beginWorkæµç¨å¾](https://react.iamkasong.com/img/beginWork.png)
+![beginWorkæµç¨å¾](https://images.yewq.top/uPic/beginWork.png)
 
 ### completeWork
 
@@ -1700,7 +1700,17 @@ beginWork
 completeWork
 
 - mount
+  - 为`Fiber节点`生成对应的`DOM节点`
+  - 将子孙`DOM节点`插入刚生成的`DOM节点`中
+    - appendAllChildren
+
+  - 与`update`逻辑中的`updateHostComponent`类似的处理`props`的过程
+
 - update
+  - 处理`props`
+
+
+![completeWork流程图](https://images.yewq.top/uPic/completeWork.png)
 
 # 面试相关
 
