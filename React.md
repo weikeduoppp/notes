@@ -1576,6 +1576,132 @@ export const Deletion = /*              */ 0b0000000001000;
 React`内部实现的一套状态更新机制。支持任务不同`优先级`，可中断与恢复，并且恢复后可以复用之前的`中间状态
 ```
 
+### 总结
+
+通过本章的学习，我们了解了`React`的`Scheduler-Reconciler-Renderer`架构体系，在结束本章前，我想介绍几个源码内的术语：
+
+- `Reconciler`工作的阶段被称为`render`阶段。因为在该阶段会调用组件的`render`方法。
+- `Renderer`工作的阶段被称为`commit`阶段。就像你完成一个需求的编码后执行`git commit`提交代码。`commit`阶段会把`render`阶段提交的信息渲染在页面上。
+- `render`与`commit`阶段统称为`work`，即`React`在工作中。相对应的，如果任务正在`Scheduler`内调度，就不属于`work`。
+
+在`架构篇`我们会分别讲解`Reconciler`和`Renderer`的工作流程，所以章节名分别为`render阶段`和`commit阶段`。
+
+## render阶段
+
+### 流程概览
+
+本章我们会讲解`Fiber节点`是如何被创建并构建`Fiber树`的。
+
+`render阶段`开始于`performSyncWorkOnRoot`或`performConcurrentWorkOnRoot`方法的调用。这取决于本次更新是同步更新还是异步更新。
+
+我们现在还不需要学习这两个方法，只需要知道在这两个方法中会调用如下两个方法：
+
+```js
+// performSyncWorkOnRoot会调用该方法
+function workLoopSync() {
+  while (workInProgress !== null) {
+    performUnitOfWork(workInProgress);
+  }
+}
+
+// performConcurrentWorkOnRoot会调用该方法
+function workLoopConcurrent() {
+  while (workInProgress !== null && !shouldYield()) {
+    performUnitOfWork(workInProgress);
+  }
+}
+```
+
+可以看到，他们唯一的区别是是否调用`shouldYield`。如果当前浏览器帧没有剩余时间，`shouldYield`会中止循环，直到浏览器有空闲时间后再继续遍历。
+
+`workInProgress`代表当前已创建的`workInProgress fiber`。
+
+`performUnitOfWork`方法会创建下一个`Fiber节点`并赋值给`workInProgress`，并将`workInProgress`与已创建的`Fiber节点`连接起来构成`Fiber树`。
+
+> 你可以从[这里 (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberWorkLoop.new.js#L1599)看到`workLoopConcurrent`的源码
+
+我们知道`Fiber Reconciler`是从`Stack Reconciler`重构而来，通过遍历的方式实现可中断的递归，所以`performUnitOfWork`的工作可以分为两部分：“递”和“归”。
+
+“递”阶段
+
+首先从`rootFiber`开始向下深度优先遍历。为遍历到的每个`Fiber节点`调用[beginWork方法 (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberBeginWork.new.js#L3058)。
+
+该方法会根据传入的`Fiber节点`创建`子Fiber节点`，并将这两个`Fiber节点`连接起来。
+
+当遍历到叶子节点（即没有子组件的组件）时就会进入“归”阶段。
+
+“归”阶段
+
+在“归”阶段会调用[completeWork (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L652)处理`Fiber节点`。
+
+当某个`Fiber节点`执行完`completeWork`，如果其存在`兄弟Fiber节点`（即`fiber.sibling !== null`），会进入其`兄弟Fiber`的“递”阶段。
+
+如果不存在`兄弟Fiber`，会进入`父级Fiber`的“归”阶段。
+
+“递”和“归”阶段会交错执行直到“归”到`rootFiber`。至此，`render阶段`的工作就结束了。
+
+以上一节的例子举例：
+
+```js
+function App() {
+  return (
+    <div>
+      i am
+      <span>KaSong</span>
+    </div>
+  )
+}
+
+ReactDOM.render(<App />, document.getElementById("root"));
+```
+
+对应的`Fiber树`结构： ![Fiber架构](https://react.iamkasong.com/img/fiber.png)
+
+`render阶段`会依次执行：
+
+```sh
+1. rootFiber beginWork
+2. App Fiber beginWork
+3. div Fiber beginWork
+4. "i am" Fiber beginWork
+5. "i am" Fiber completeWork
+6. span Fiber beginWork
+7. span Fiber completeWork
+8. div Fiber completeWork
+9. App Fiber completeWork
+10. rootFiber completeWork注意
+```
+
+>  之所以没有 “KaSong” Fiber 的 beginWork/completeWork，是因为作为一种性能优化手段，针对只有单一文本子节点的`Fiber`，`React`会特殊处理
+
+### beginWork
+
+beginWork
+
+- mount 除`fiberRootNode`以外，`current === null`。会根据`fiber.tag`不同，创建不同类型的`子Fiber节点`
+  - reconcileChildren
+    - mountChildFibers
+- update  如果`current`存在，在满足一定条件时可以复用`current`节点，这样就能克隆`current.child`作为`workInProgress.child`，而不需要新建`workInProgress.child`
+  - bailoutOnAlreadyFinishedWork 可以复用
+  - reconcileChildFibers  生成的`Fiber节点`带上`effectTag`属性
+
+> 值得一提的是，mountChildFibers与reconcileChildFibers这两个方法的逻辑基本一致。唯一的区别是：reconcileChildFibers会为生成的Fiber节点带上effectTag属性，而mountChildFibers不会。 那么首屏渲染如何完成呢？ 
+
+> 答案十分巧妙, 假设mountChildFibers也会赋值effectTag，那么可以预见mount时整棵Fiber树所有节点都会有Placement effectTag。那么commit阶段在执行DOM操作时每个节点都会执行一次插入操作，这样大量的DOM操作是极低效的。 为了解决这个问题，在mount时只有rootFiber会赋值Placement effectTag，在commit阶段只会执行一次插入操作。
+
+![beginWorkæµç¨å¾](https://react.iamkasong.com/img/beginWork.png)
+
+### completeWork
+
+`completeWork`也是针对不同`fiber.tag`调用不同的处理逻辑。
+
+处理HostComponent例子
+
+completeWork
+
+- mount
+- update
+
 # 面试相关
 
 ## **1. React中key是什么，有什么用处**
