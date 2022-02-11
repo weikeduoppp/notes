@@ -1674,6 +1674,14 @@ ReactDOM.render(<App />, document.getElementById("root"));
 
 >  之所以没有 “KaSong” Fiber 的 beginWork/completeWork，是因为作为一种性能优化手段，针对只有单一文本子节点的`Fiber`，`React`会特殊处理
 
+流程总结
+
+rootFiber beginWork开始
+
+- (步骤1)找到child尽头 -> 无child 当前Fiber执行 completeWork -> 找sibling 先 
+  - 当前Fiber 执行 completeWork里 找到sibling之后return重复步骤1
+  - 当前Fiber 执行 completeWork 无sibling 后找returnFiber completeWork(当前Fiber) =  returnFiber  重新执行completeWork (while执行 completeWork !== null )
+
 ### beginWork
 
 beginWork
@@ -1683,13 +1691,13 @@ beginWork
     - mountChildFibers
 - update  如果`current`存在，在满足一定条件时可以复用`current`节点，这样就能克隆`current.child`作为`workInProgress.child`，而不需要新建`workInProgress.child`
   - bailoutOnAlreadyFinishedWork 可以复用
-  - reconcileChildFibers  生成的`Fiber节点`带上`effectTag`属性
+  - reconcileChildFibers  生成的新的子`Fiber节点`带上`effectTag`属性
 
 > 值得一提的是，mountChildFibers与reconcileChildFibers这两个方法的逻辑基本一致。唯一的区别是：reconcileChildFibers会为生成的Fiber节点带上effectTag属性，而mountChildFibers不会。 那么首屏渲染如何完成呢？ 
 
 > 答案十分巧妙, 假设mountChildFibers也会赋值effectTag，那么可以预见mount时整棵Fiber树所有节点都会有Placement effectTag。那么commit阶段在执行DOM操作时每个节点都会执行一次插入操作，这样大量的DOM操作是极低效的。 为了解决这个问题，在mount时只有rootFiber会赋值Placement effectTag，在commit阶段只会执行一次插入操作。
 
-![beginWorkæµç¨å¾](https://images.yewq.top/uPic/beginWork.png)
+<img src="https://images.yewq.top/uPic/beginWork.png" alt="beginWorkæµç¨å¾" style="zoom: 150%;" />
 
 ### completeWork
 
@@ -1697,20 +1705,42 @@ beginWork
 
 处理HostComponent例子
 
-completeWork
+completeWork 
 
 - mount
   - 为`Fiber节点`生成对应的`DOM节点`
   - 将子孙`DOM节点`插入刚生成的`DOM节点`中
-    - appendAllChildren
-
+    - appendAllChildren  由于`completeWork`属于“归”阶段调用的函数，每次调用`appendAllChildren`时都会将已生成的子孙`DOM节点`插入当前生成的`DOM节点`下。那么当“归”到`rootFiber`时，我们已经有一个构建好的离屏`DOM树`
   - 与`update`逻辑中的`updateHostComponent`类似的处理`props`的过程
+  - 
 
 - update
   - 处理`props`
+  
+  
 
 
 ![completeWork流程图](https://images.yewq.top/uPic/completeWork.png)
+
+
+
+关于Fiber的主要工作流程中的EffectList：
+react团队已经弃用effectList
+[facebook/react#19673](https://github.com/facebook/react/pull/19673)
+
+在commit阶段会遍历fiber树进行更新，通过subtreeFlags做遍历时的优化
+
+https://github.com/BetaSu/just-react/issues/41
+
+
+
+
+
+## commit 阶段
+
+
+
+
 
 # 面试相关
 
