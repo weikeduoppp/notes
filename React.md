@@ -1738,7 +1738,22 @@ https://github.com/BetaSu/just-react/issues/41
 
 ## commit 阶段
 
+`commit`阶段的主要工作（即`Renderer`的工作流程）分为三部分：
 
+- before mutation阶段（执行`DOM`操作前）
+  - 处理`DOM节点`渲染/删除后的 `autoFocus`、`blur` 逻辑。
+  - 调用`getSnapshotBeforeUpdate`生命周期钩子。
+  - 调度`useEffect`。
+- mutation阶段（执行`DOM`操作） 主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`。
+  - `mutation阶段`会遍历`effectList`，依次执行`commitMutationEffects`。该方法的主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`。
+    - Placement 该`Fiber节点`对应的`DOM节点`需要插入到页面中
+    - Update 根据tag 最终会在[`updateDOMProperties` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-dom/src/client/ReactDOMComponent.js#L378)中将[`render阶段 completeWork` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L229)中为`Fiber节点`赋值的`updateQueue`对应的内容渲染在页面上。
+    - Deletion
+      - 递归调用`Fiber节点`及其子孙`Fiber节点`中`fiber.tag`为`ClassComponent`的[`componentWillUnmount` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCommitWork.new.js#L920)生命周期钩子，从页面移除`Fiber节点`对应`DOM节点`
+      - 解绑`ref`
+      - 调度`useEffect`的销毁函数
+- layout阶段（执行`DOM`操作后）
+  - 该方法的主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`并更新`ref`。
 
 
 
