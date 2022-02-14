@@ -6,6 +6,8 @@ https://projects.wojtekmaj.pl/react-lifecycle-methods-diagram/
 
 ![img](https://images.yewq.top/a7d8676f379d4d96bbf0ebd9a8528594~tplv-k3u1fbpfcp-watermark.awebp)
 
+<img src="https://images.yewq.top/uPic/image-20220214230110035.png" alt="image-20220214230110035" style="zoom:150%;" />
+
 - 挂载
     - constructor
     - getDerivedStateFromProps
@@ -1216,8 +1218,8 @@ export default {
 
 diff 策略 
 
-1. **同级⽐较，Web UI 中 DOM 节点跨层级的移动操作 特别少，可以忽略不计**。 
-2. **拥有不同类型的两个组件将会⽣成不同的树形结构**。 例如：div->p, CompA->CompB 
+1. **同级⽐较diff，Web UI 中 DOM 节点跨层级的移动操作 特别少，可以忽略不计**。 
+2. **不同类型的两个组件将会⽣成不同的树形结构**。 例如：div->p, CompA->CompB 
 3. **开发者可以通过 key prop 来暗示哪些⼦元素在不同 的渲染下能保持稳定**；
 
 ⽐对两个虚拟dom时会有三种操作：删除、替换和更新 
@@ -1740,20 +1742,144 @@ https://github.com/BetaSu/just-react/issues/41
 
 `commit`阶段的主要工作（即`Renderer`的工作流程）分为三部分：
 
-- before mutation阶段（执行`DOM`操作前）
-  - 处理`DOM节点`渲染/删除后的 `autoFocus`、`blur` 逻辑。
-  - 调用`getSnapshotBeforeUpdate`生命周期钩子。
-  - 调度`useEffect`。
-- mutation阶段（执行`DOM`操作） 主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`。
-  - `mutation阶段`会遍历`effectList`，依次执行`commitMutationEffects`。该方法的主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`。
-    - Placement 该`Fiber节点`对应的`DOM节点`需要插入到页面中
-    - Update 根据tag 最终会在[`updateDOMProperties` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-dom/src/client/ReactDOMComponent.js#L378)中将[`render阶段 completeWork` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L229)中为`Fiber节点`赋值的`updateQueue`对应的内容渲染在页面上。
-    - Deletion
-      - 递归调用`Fiber节点`及其子孙`Fiber节点`中`fiber.tag`为`ClassComponent`的[`componentWillUnmount` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCommitWork.new.js#L920)生命周期钩子，从页面移除`Fiber节点`对应`DOM节点`
-      - 解绑`ref`
-      - 调度`useEffect`的销毁函数
-- layout阶段（执行`DOM`操作后）
-  - 该方法的主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`并更新`ref`。
+### before mutation阶段（执行`DOM`操作前）
+
+- 处理`DOM节点`渲染/删除后的 `autoFocus`、`blur` 逻辑。
+- 调用`getSnapshotBeforeUpdate`生命周期钩子。
+- 异步调度`useEffect`。
+
+### mutation阶段（执行`DOM`操作） 
+
+主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`。
+
+- `mutation阶段`会遍历`effectList`，依次执行`commitMutationEffects`。该方法的主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`。
+  - Placement 该`Fiber节点`对应的`DOM节点`需要插入到页面中
+  - Update 根据tag 最终会在[`updateDOMProperties` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-dom/src/client/ReactDOMComponent.js#L378)中将[`render阶段 completeWork` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L229)中为`Fiber节点`赋值的`updateQueue`对应的内容渲染在页面上。
+    - 当`fiber.tag`为`FunctionComponent`，会调用`commitHookEffectListUnmount`。该方法会遍历`effectList`，执行所有`useLayoutEffect hook`的销毁函数。
+    - 当`fiber.tag`为`HostComponent`，会调用`commitUpdate` 最终会在[`updateDOMProperties` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-dom/src/client/ReactDOMComponent.js#L378)中将[`render阶段 completeWork` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCompleteWork.new.js#L229)中为`Fiber节点`赋值的`updateQueue`对应的内容渲染在页面上
+  - Deletion
+    - 递归调用`Fiber节点`及其子孙`Fiber节点`中`fiber.tag`为`ClassComponent`的[`componentWillUnmount` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCommitWork.new.js#L920)生命周期钩子，从页面移除`Fiber节点`对应`DOM节点`
+    - 解绑`ref`
+    - 调度`useEffect`的销毁函数
+
+### layout阶段（执行`DOM`操作后）
+
+- commitLayoutEffects 该方法的主要工作为“根据`effectTag`调用不同的处理函数处理`Fiber`并更新`ref`。
+
+  - commitLayoutEffectOnFiber（调用`生命周期钩子`和`hook`相关操作）
+
+    - 对于`ClassComponent`，他会通过`current === null?`区分是`mount`还是`update`，调用[`componentDidMount` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCommitWork.new.js#L538)或[`componentDidUpdate` (opens new window)](https://github.com/facebook/react/blob/970fa122d8188bafa600e9b5214833487fbf1092/packages/react-reconciler/src/ReactFiberCommitWork.new.js#L592)。
+
+      - 触发`状态更新`的`this.setState`如果赋值了第二个参数`回调函数`，也会在此时调用
+
+    - 对于`FunctionComponent`及相关类型，他会调用`useLayoutEffect hook`的`回调函数`，调度`useEffect`的`销毁`与`回调`函数
+
+      - `useLayoutEffect hook`从上一次更新的`销毁函数`调用到本次更新的`回调函数`调用是同步执行的。
+
+        而`useEffect`则需要先调度，在`Layout阶段`完成后再异步执行
+
+      
+
+  - commitAttachRef（赋值 ref）
+
+  - `workInProgress Fiber树`在`commit阶段`完成渲染后会变为`current Fiber树`。这行代码的作用就是切换`fiberRootNode`指向的`current Fiber树`
+
+    - ```js
+      root.current = finishedWork;
+      ```
+
+	## 实现篇
+
+### diff算法(3个限制)
+
+为了降低算法复杂度，`React`的`diff`会预设三个限制：
+
+1. 只对同级元素进行`Diff`。如果一个`DOM节点`在前后两次更新中跨越了层级，那么`React`不会尝试复用他。
+2. 两个不同类型的元素会产生出不同的树。如果元素由`div`变为`p`，React会销毁`div`及其子孙节点，并新建`p`及其子孙节点。
+3. 开发者可以通过 `key prop`来暗示哪些子元素在不同的渲染下能保持稳定。
+
+Diff分为两类：
+
+1. 当`newChild`类型为`object`、`number`、`string`，代表同级只有一个节点
+2. 当`newChild`类型为`Array`，同级有多个节点
+
+```js
+function reconcileChildFibers(returnFiber, currentFirstChild, newChild, lanes){
+  //...
+}
+```
+
+	#### 单节点diff
+
+```js
+const isObject = typeof newChild === 'object' && newChild !== null;
+
+  if (isObject) {
+    // 对象类型，可能是 REACT_ELEMENT_TYPE 或 REACT_PORTAL_TYPE
+    switch (newChild.$$typeof) {
+      case REACT_ELEMENT_TYPE:
+        // 调用 reconcileSingleElement 处理
+      // ...其他case
+    }
+  }
+```
+
+```js
+function reconcileSingleElement(
+  returnFiber: Fiber,
+  currentFirstChild: Fiber | null,
+  element: ReactElement
+): Fiber {
+  const key = element.key;
+  let child = currentFirstChild;
+  
+  // 首先判断是否存在对应DOM节点
+  while (child !== null) {
+    // 上一次更新存在DOM节点，接下来判断是否可复用
+
+    // 首先比较key是否相同
+    if (child.key === key) {
+
+      // key相同，接下来比较type是否相同
+
+      switch (child.tag) {
+        // ...省略case
+        
+        default: {
+          if (child.elementType === element.type) {
+            // type相同则表示可以复用
+            // 返回复用的fiber
+            return existing;
+          }
+          
+          // type不同则跳出switch
+          break;
+        }
+      }
+      // 代码执行到这里代表：key相同但是type不同
+      // 将该fiber及其兄弟fiber标记为删除
+      deleteRemainingChildren(returnFiber, child);
+      break;
+    } else {
+      // key不同，将该fiber标记为删除
+      deleteChild(returnFiber, child);
+    }
+    child = child.sibling;
+  }
+
+  // 创建新Fiber，并返回 ...省略
+}
+```
+
+- 上次更新的child是否存在
+  - 存在看是否可以复用 (存在遍历child及兄弟节点)
+    - 先看key是否相同
+      - key相同 接下来看type
+        - type 相同 返回复用fiber节点
+        - type 不相同 将该fiber及其兄弟fiber标记为删除. 当`key相同`且`type不同`时，代表我们已经找到本次更新的`p`对应的上次的`fiber`，但是`p`与`li` `type`不同，不能复用。既然唯一的可能性已经不能复用，则剩下的`fiber`都没有机会了，所以都需要标记删除。
+      - key不相同 将该fiber标记为删除, 后面还有兄弟`fiber`还没有遍历到。所以仅仅标记该`fiber`删除。
+    - 创建新Fiber
+  - 不存在新建fiber节点
 
 
 
