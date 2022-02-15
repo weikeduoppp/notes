@@ -1788,7 +1788,7 @@ https://github.com/BetaSu/just-react/issues/41
       root.current = finishedWork;
       ```
 
-	## 实现篇
+## 实现篇
 
 ### diff算法(3个限制)
 
@@ -1809,7 +1809,7 @@ function reconcileChildFibers(returnFiber, currentFirstChild, newChild, lanes){
 }
 ```
 
-	#### 单节点diff
+#### 单节点diff
 
 ```js
 const isObject = typeof newChild === 'object' && newChild !== null;
@@ -1881,7 +1881,70 @@ function reconcileSingleElement(
     - 创建新Fiber
   - 不存在新建fiber节点
 
+#### 多节点diff
 
+`React团队`发现，在日常开发中，相较于`新增`和`删除`，`更新`组件发生的频率更高。所以`Diff`会优先判断当前节点是否属于`更新`。
+
+> 注意
+>
+> 在我们做数组相关的算法题时，经常使用**双指针**从数组头和尾同时遍历以提高效率，但是这里却不行。
+>
+> 虽然本次更新的`JSX对象` `newChildren`为数组形式，但是和`newChildren`中每个组件进行比较的是`current fiber`，同级的`Fiber节点`是由`sibling`指针链接形成的单链表，即不支持双指针遍历。
+>
+> 即 `newChildren[0]`与`fiber`比较，`newChildren[1]`与`fiber.sibling`比较。
+>
+> 所以无法使用**双指针**优化。
+
+基于以上原因，`Diff算法`的整体逻辑会经历两轮遍历：
+
+第一轮遍历：处理`更新`的节点。
+
+第二轮遍历：处理剩下的不属于`更新`的节点。
+
+##### 第一轮遍历
+
+第一轮遍历步骤如下：
+
+1. `let i = 0`，遍历`newChildren`，将`newChildren[i]`与`oldFiber`比较，判断`DOM节点`是否可复用。
+2. 如果可复用，`i++`，继续比较`newChildren[i]`与`oldFiber.sibling`，可以复用则继续遍历。
+   1. 如果`newChildren`遍历完（即`i === newChildren.length - 1`）或者`oldFiber`遍历完（即`oldFiber.sibling === null`），跳出遍历，**第一轮遍历结束。**
+3. 如果不可复用，分两种情况：
+
+- `key`不同导致不可复用，立即跳出整个遍历，**第一轮遍历结束。**
+- `key`相同`type`不同导致不可复用，会将`oldFiber`标记为`DELETION`，并继续遍历
+
+
+
+##### 第二轮遍历
+
+第一轮的结果有几种: 
+
+- `newChildren`与`oldFiber`同时遍历完
+- `newChildren`没遍历完, `oldFiber` 遍历完 意味着本次更新有新节点插入 我们只需要遍历剩下的`newChildren`为生成的`workInProgress fiber`依次标记`Placement`。
+- `newChildren` 遍历完, `oldFiber` 没遍历完  意味着本次更新比之前的节点数量少，有节点被删除了。所以需要遍历剩下的`oldFiber`，依次标记`Deletion`。
+- `newChildren` 没遍历完, `oldFiber` 没遍历完 这意味着有节点在这次更新中改变了位置。
+
+##### 没遍历完的节点
+
+由于有节点改变了位置，所以不能再用位置索引`i`对比前后的节点，那么如何才能将同一个节点在两次更新中对应上呢？
+
+我们需要使用`key`。
+
+为了快速的找到`key`对应的`oldFiber`，我们将所有还未处理的`oldFiber`存入以`key`为key，`oldFiber`为value的`Map`中。
+
+```javascript
+const existingChildren = mapRemainingChildren(returnFiber, oldFiber);
+```
+
+接下来遍历剩余的`newChildren`，通过`newChildren[i].key`就能在`existingChildren`中找到`key`相同的`oldFiber`。
+
+- 找到相同key	
+  - type是否相同 可复用 
+    - 可复用 existingChildren.delete(newFiber.key)
+  - 不可复用 新建fiber
+- 没找到新建fiber
+
+剩余existingChildren还有 遍历筛入deletions
 
 # 面试相关
 
