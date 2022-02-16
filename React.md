@@ -1726,7 +1726,7 @@ completeWork
 
 
 
-关于Fiber的主要工作流程中的EffectList：
+关于Fiber的主要工作流程中的EffectList：	
 react团队已经弃用effectList
 [facebook/react#19673](https://github.com/facebook/react/pull/19673)
 
@@ -1877,7 +1877,7 @@ function reconcileSingleElement(
       - key相同 接下来看type
         - type 相同 返回复用fiber节点
         - type 不相同 将该fiber及其兄弟fiber标记为删除. 当`key相同`且`type不同`时，代表我们已经找到本次更新的`p`对应的上次的`fiber`，但是`p`与`li` `type`不同，不能复用。既然唯一的可能性已经不能复用，则剩下的`fiber`都没有机会了，所以都需要标记删除。
-      - key不相同 将该fiber标记为删除, 后面还有兄弟`fiber`还没有遍历到。所以仅仅标记该`fiber`删除。
+      - key不相同 将该fiber标记为删除, 后面可能还有兄弟`fiber`还没有遍历到。所以仅仅标记该`fiber`删除。
     - 创建新Fiber
   - 不存在新建fiber节点
 
@@ -1917,9 +1917,9 @@ function reconcileSingleElement(
 
 ##### 第二轮遍历
 
-第一轮的结果有几种: 
+根据第一轮的结果有几种: 
 
-- `newChildren`与`oldFiber`同时遍历完
+- `newChildren`与`oldFiber`同时遍历完 意味着本次更新只更新属性
 - `newChildren`没遍历完, `oldFiber` 遍历完 意味着本次更新有新节点插入 我们只需要遍历剩下的`newChildren`为生成的`workInProgress fiber`依次标记`Placement`。
 - `newChildren` 遍历完, `oldFiber` 没遍历完  意味着本次更新比之前的节点数量少，有节点被删除了。所以需要遍历剩下的`oldFiber`，依次标记`Deletion`。
 - `newChildren` 没遍历完, `oldFiber` 没遍历完 这意味着有节点在这次更新中改变了位置。
@@ -1944,7 +1944,81 @@ const existingChildren = mapRemainingChildren(returnFiber, oldFiber);
   - 不可复用 新建fiber
 - 没找到新建fiber
 
-剩余existingChildren还有 遍历筛入deletions
+剩余existingChildren如果还有 遍历筛入deletions
+
+### 状态更新
+
+`状态更新`的整个调用路径的关键节点：
+
+```js
+触发状态更新（根据场景调用不同方法）
+
+    |
+    |
+    v
+
+创建Update对象（接下来三节详解）
+
+    |
+    |
+    v
+
+从fiber到root（`markUpdateLaneFromFiberToRoot`）
+
+    |
+    |
+    v
+
+调度更新（`ensureRootIsScheduled`）
+
+    |
+    |
+    v
+
+render阶段（`performSyncWorkOnRoot` 或 `performConcurrentWorkOnRoot`）
+
+    |
+    |
+    v
+
+commit阶段（`commitRoot`）
+```
+
+
+
+#### 并发更新的react
+
+当有了`代码版本控制`，有紧急线上bug需要修复时，我们暂存当前分支的修改，在`master分支`修复bug并紧急上线。
+
+![流程2](https://react.iamkasong.com/img/git2.png)
+
+bug修复上线后通过`git rebase`命令和`开发分支`连接上。`开发分支`基于`修复bug的版本`继续开发。
+
+![流程3](https://react.iamkasong.com/img/git3.png)
+
+在`React`中，通过`ReactDOM.createBlockingRoot`和`ReactDOM.createRoot`创建的应用会采用`并发`的方式`更新状态`。
+
+`高优更新`（红色节点）中断正在进行中的`低优更新`（蓝色节点），先完成`render - commit流程`。
+
+待`高优更新`完成后，`低优更新`基于`高优更新`的结果`重新更新`。
+
+#### Update
+
+>  Update`类比`心智模型`中的一次`commit
+
+首先，我们将可以触发更新的方法所隶属的组件分类：
+
+- ReactDOM.render —— HostRoot
+- this.setState —— ClassComponent
+- this.forceUpdate —— ClassComponent
+- useState —— FunctionComponent
+- useReducer —— FunctionComponent
+
+可以看到，一共三种组件（`HostRoot` | `ClassComponent` | `FunctionComponent`）可以触发更新。
+
+由于不同类型组件工作方式不同，所以存在两种不同结构的`Update`，其中`ClassComponent`与`HostRoot`共用一套`Update`结构，`FunctionComponent`单独使用一种`Update`结构。
+
+
 
 # 面试相关
 
