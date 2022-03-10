@@ -2029,6 +2029,51 @@ bug修复上线后通过`git rebase`命令和`开发分支`连接上。`开发�
 - 交互事件：比如动画，高优先级执行。
 - 其他：比如数据请求，低优先级执行。
 
+### [高优先级任务插队机制](https://segmentfault.com/a/1190000039134817)
+
+- 任务优先级本质上是和update的优先级
+- React这边对任务的调度本质上其实是以任务优先级为基准，去操作多个或单个任务。 多个任务的情况，相对于新任务，会对现有任务进行**或复用，或取消**的操作，单个任务的情况，对任务进行**或同步，或异步，或批量同步（暂时不需要关注）** 的调度决策，
+  这种行为可以看成是一种任务调度协调机制，这种协调通过`ensureRootIsScheduled`去实现。
+- 只处理优先级足够的update是让高优先级任务被执行掉的最本质原因，在循环了一次updateQueue之后，那些被跳过的update的lane又被放入了fiber.lanes，现在，只需要将它放到root.pendingLanes中，就能表示在本轮更新后，仍然有任务未被处理，从而实现低优先级任务被重新调度。所以接下来的过程就是fiber节点的完成阶段：completeWork阶段去收集这些lanes。
+
+
+
+高优先级任务插队，低优先级任务重做的整个过程共有四个关键点：
+
+- ensureRootIsScheduled取消已有的低优先级更新任务，重新调度一个任务去做高优先级更新，并以root.pendingLanes中最重要的那部分lanes作为渲染优先级
+- 执行更新任务时跳过updateQueue中的低优先级update，并将它的lane标记到fiber.lanes中。
+- fiber节点的complete阶段收集fiber.lanes到父级fiber的childLanes，一直到root。
+- commit阶段将所有root.childLanes连同root.lanes一并赋值给root.pendingLanes。
+- commit阶段的最后重新发起调度。
+
+### [任务饥饿行为](https://segmentfault.com/a/1190000039149258)
+
+饥饿问题说到底就是高优先级任务不能毫无底线地打断低优先级任务，一旦低优先级任务过期了，那么他就会被提升到同步优先级去立即执行。
+
+
+
+concurrent模式下的任务执行会有时间片的体现，检查并记录任务是否过期就发生在每个时间片结束交还主线程的时候。可以理解成在整个（高优先级）任务的执行期间，
+持续调用`ensureRootIsScheduled`去做这件事，这样一旦发现有过期任务，可以立马调度。
+
+执行任务的函数是`performConcurrentWorkOnRoot`，一旦因为时间片中断了任务，就会调用`ensureRootIsScheduled`。
+
+
+
+所以整个持续检查过期任务过程是：一个更新任务被调度，Scheduler调用`performConcurrentWorkOnRoot`去执行任务，后面的步骤：
+
+1. `performConcurrentWorkOnRoot`调用`renderRootConcurrent`，`renderRootConcurrent`去调用`workLoopConcurrent`执行fiber的构建任务，也就是update引起的更新任务。
+2. 当执行时间超出时间片限制之后，首先`workLoopConcurrent`会弹出调用栈，然后`renderRootConcurrent`中的do...while(true)被break掉，使得它也弹出调用栈，因此回到`performConcurrentWorkOnRoot`中。
+3. `performConcurrentWorkOnRoot`继续往下执行，调用`ensureRootIsScheduled`检查有无过期任务需要被调度。
+4. 本次时间片跳出后的逻辑完成，Scheduler会再次调用`performConcurrentWorkOnRoot`执行任务，重复1到3的过程，也就实现了持续检查过期任务。
+
+
+
+总结: 
+
+低优先级任务的饥饿问题其实本质上还是高优先级任务插队，但是低优先级任务在被长时间的打断之后，它的优先级并没有提高，提高的根本原因是`markStarvedLanesAsExpired`
+将过期任务的优先级放入root.expiredLanes，之后优先从expiredLanes获取任务优先级以及渲染优先级，即使pendingLanes中有更高优先级的任务，但也无法从pendingLanes中
+获取到高优任务对应的任务优先级。
+
 # 面试相关
 
 ## **1. React中key是什么，有什么用处**
