@@ -2074,7 +2074,30 @@ concurrent模式下的任务执行会有时间片的体现，检查并记录任�
 将过期任务的优先级放入root.expiredLanes，之后优先从expiredLanes获取任务优先级以及渲染优先级，即使pendingLanes中有更高优先级的任务，但也无法从pendingLanes中
 获取到高优任务对应的任务优先级。
 
-# 面试相关
+
+
+### [调度机制原理](https://segmentfault.com/a/1190000039101758)
+
+基于任务优先级和时间片的概念，Scheduler围绕着它的核心目标 - 任务调度，衍生出了两大核心功能：任务队列管理 和 时间片下任务的中断和恢复。
+
+任务队列管理
+
+- taskQueue中，依据任务的过期时间（expirationTime）排序，过期时间越早，说明越紧急，过期时间小的排在前面。过期时间根据任务优先级计算得出，优先级越高，过期时间越早。
+- timerQueue中，依据任务的开始时间（startTime）排序，开始时间越早，说明会越早开始，开始时间小的排在前面。任务进来的时候，开始时间默认是当前时间，如果进入调度的时候传了延迟时间，开始时间则是当前时间与延迟时间的和。
+
+详细流程
+
+- 产生任务的地方：React
+- React和Scheduler交流的翻译者：SchedulerWithReactIntegration
+- 任务的调度者：Scheduler
+- scheduleCallback是调度流程开始, **负责生成调度任务、根据任务是否过期将任务放入timerQueue或taskQueue，已过期任务然后触发调度行为，让任务进入调度**,  调度一个执行者执行任务
+- Scheduler区分了浏览器环境和非浏览器环境，为`requestHostCallback`做了两套不同的实现。在非浏览器环境下，使用setTimeout实现. 在浏览器环境, 用MessageChannel实现
+- performWorkUntilDeadline 按照时间片的限制去中断任务，并通知调度者再次调度一个新的执行者去继续任务 performWorkUntilDeadline`内部调用的是`scheduledHostCallback == `flushWork`作为真正去执行任务的函数
+- workLoop作为实际执行任务的函数:  循环taskQueue执行任务 和 任务状态的判断。 中止的判断条件是：任务并未过期，但已经没有剩余时间了（由于hasTimeRemaining一直为true，这与MessageChannel作为宏任务的执行时机有关，我们忽略这个判断条件，只看时间片）根据currentTask值来判断全部任务是否被执行完. **workLoop是通过判断任务函数的返回值去识别任务的完成状态的**。如果执行者判断callback返回值为一个`function`，说明未完成，那么会将返回的这个function再次赋值给任务的callback，由于任务还未完成，所以并不会被剔除出taskQueue，currentTask获取到的还是它，while循环到下一次还是会继续执行这个任务，直到任务完成出队，才会继续下一个。
+- 如果还有任务，继续让调度者调度执行者，便于继续
+- 取消调度 将当前这个任务的callback设置为null
+
+# 面试相关 
 
 ## **1. React中key是什么，有什么用处**
 
