@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+    <style>
+      /* CSS深度选择器  >>>、/deep/、::v-deep */
+      .a {
+        position: relative;
+        height: 20000px;
+        background-color: beige;
+      }
+      .b {
+        position: sticky;
+        top: 100px;
+        height: 200px;
+        background-color: aqua;
+      }
+      .visibility {
+        height: 100px;
+        visibility: hidden;
+      }
+      .bfc {
+        /* BFC的区域不会与浮动元素的区域重叠 计算BFC高度的时候，浮动元素也会参与计算 */
+        display: flex;
+        /* BFC元素垂直方向的边距会发生重叠，由 margin 决定 */
+        margin-top: 20px;
+        margin-bottom: 20px;
+        background-color: #ccc;
+      }
+      .bfc_c {
+        float: left;
+        margin-top: 25px;
+        background-color: aqua;
+      }
+      /* 
+          外边距重叠，如
+            父子元素都设置了margin-top
+            兄弟元素margin-bottom和margin-top会重叠
+            空元素设置了上下margin值不一样
+            这三种情况没有BFC的话，margin会重叠取margin较大的那个
+    */
+      .bfc_b {
+        margin-top: 25px;
+        display: flex;
+        height: 40px;
+        background-color: #bbb;
+      }
+      a:link {
+      }
+      a:visited {
+      }
+      a:hover {
+      }
+
+      a:active {
+      }
+      .box {
+        width: 300px;
+        height: 300px;
+        text-align: center;
+      }
+      .box:after {
+        content: "";
+        height: 100%;
+        display: inline-block;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="a">
+      <div class="visibility">
+        visibility
+        <div>123</div>
+      </div>
+      <div class="b">123</div>
+      <div class="bfc">
+        <div class="bfc_c">bfc_c</div>
+      </div>
+      <div class="bfc_b">
+        <a href="http://baidu.com">baidu</a>
+      </div>
+
+      <div class="box">
+        <span class="content">这碗又大又圆，这面又长又宽</span>
+      </div>
+    </div>
+  </body>
+</html>
