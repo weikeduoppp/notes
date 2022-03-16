@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Document</title>
     <style>
+      * {
+        margin: 0;
+      }
       /* CSS深度选择器  >>>、/deep/、::v-deep */
       .a {
         position: relative;
@@ -58,9 +61,18 @@
       a:active {
       }
       .box {
+        position: relative;
         width: 300px;
         height: 300px;
         text-align: center;
+        background-color: #ccc;
+      }
+      .position_transform {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: aliceblue;
       }
       .box:after {
         content: "";
@@ -68,7 +80,50 @@
         display: inline-block;
         vertical-align: middle;
       }
+      img {
+        margin: 0;
+        /* img图片有间隙是因为基线的原因 设置vertical-align: bottom;即可 */
+        vertical-align: bottom;
+        line-height: 0;
+      }
+      .grid {
+        display: grid;
+        height: 300px;
+        background-color: aliceblue;
+        /* item在这个单元格中的位置justify-items属性设置单元格内容的水平位置（左中右），align-items属性设置单元格内容的垂直位置（上中下） */
+        align-items: center;
+        justify-items: center;
+        /* justify-content属性是整个内容区域在容器里面的水平位置（左中右），align-content属性是整个内容区域的垂直位置（上中下）。 */
+        justify-content: center;
+        align-content: center;
+      }
+      .table-cell {
+        width: 300px;
+        height: 300px;
+        display: table-cell;
+        text-align: center;
+        vertical-align: middle;
+      }
+      .writing-mode-vertical-lr {
+        width: 300px;
+        height: 300px;
+        writing-mode: vertical-lr;
+        text-align: center;
+      }
+      .center-wrap-horizontal-tb {
+        writing-mode: horizontal-tb;
+        text-align: center;
+        display: inline-block;
+        width: 100%;
+      }
+      .writing-mode {
+        display: inline-block;
+      }
     </style>
+    <!-- 接口 dns-prefetch：浏览器会对href中的域名进行DNS解析并缓存，当再次请求该域名资源时，能省去查询IP的过程，从而减少时间损耗 -->
+    <link rel="dns-prefetch" href="//api.com" />
+    <!-- 上报 -->
+    <link rel="preconnect" href="//baidu.com" />
   </head>
   <body>
     <div class="a">
@@ -81,12 +136,41 @@
         <div class="bfc_c">bfc_c</div>
       </div>
       <div class="bfc_b">
+        <!-- 超链接访问过后 hover 和 active 样式就不出现了，解决办法是调整CSS属性顺序: a:link{} a:visited{} a:hover{} a:active{}-->
         <a href="http://baidu.com">baidu</a>
       </div>
-
+      <img src="./1.jpg" alt="" />
       <div class="box">
-        <span class="content">这碗又大又圆，这面又长又宽</span>
+        <span class="content">vertical-align + 伪元素</span>
+      </div>
+      <div class="box">
+        <div class="position_transform">水平垂直居中 position + transform</div>
+      </div>
+      <div class="grid">
+        <div class="content">grid content</div>
+      </div>
+      <div class="table-cell">
+        <div class="content">table-cell content</div>
+      </div>
+      <div class="writing-mode-vertical-lr">
+        <div class="center-wrap-horizontal-tb">
+          <div class="writing-mode">
+            <div style="background:rgb(249,205,173);">
+                    hello world!<br>
+                    我是一个纯净的div<br>
+                    block元素<br>
+                    我也居中了!
+                </div>
+          </div>
+        </div>
       </div>
     </div>
   </body>
+  <script>
+    a = 1;
+
+    var a;
+    b = 1;
+    let b;
+  </script>
 </html>

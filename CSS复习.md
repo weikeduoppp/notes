@@ -110,7 +110,7 @@ BFC使用场景：
 
 rel有几个属性：
 
-- `dns-prefetch`：浏览器会对href中的域名进行DNS解析并缓存，当再次请求该域名资源时，能省去查询IP的过程，从而减少时间损耗
+- `dns-prefetch`：**浏览器会对href中的域名进行DNS解析并缓存，当再次请求该域名资源时，能省去查询IP的过程，从而减少时间损耗**
 - `prefetch`/`preload`：都是预先下载并缓存某个资源，不同的是prefetch可能会在浏览器忙时被忽略，而preload则一定会预先下载
 - `preconnect`：正式发送http请求前预先执行DNS解析、TCP握手、TLS协商。通过消除往返延迟来节省时间
 - `prerender`：浏览器不仅会加载资源，还会解析执行页面，并进行预渲染
@@ -124,4 +124,133 @@ rel有几个属性：
 - `async`：立即请求文件，但不阻塞渲染引擎，而是文件加载完毕后再阻塞渲染引擎并执行js先
 - `defer`：立即请求文件，但不阻塞渲染引擎，等解析完HTML再执行js
 - `H5`标准的`type="module"`：让浏览器按照ES6标准将文件当模板解析，默认阻塞效果和defer一样，也可以配合async在请求完成后立即执行
+
+## SEO 和语义化
+
+`SEO`就是搜索引擎优化，利用搜索引擎的搜索规则来提高网站的自然排名，比如对**网站的标题**、**关键字**、**描述**精心设置，比如网站的结构布局设计和网页代码优化
+
+`语义化`就**根据内容结构化选择合适的标签和特有的属性去格式化文档内容**，在没有CSS的情况下也能呈现出很好的内容结构，代码结构，便于开发者阅读和维护，同时也利于SEO
+
+## 水平垂直居中
+
+### 不固定宽高
+
+**posolute + translate**
+
+```css
+.content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+```
+
+**vertical-align + 伪元素**
+
+```css
+.box {
+    width: 300px;
+    height: 300px;
+    text-align: center;
+}
+.box:after {
+    content: '';
+    height: 100%;
+    display: inline-block;
+    vertical-align: middle;
+}
+...
+<div class="box">
+    <span class="content">vertical-align + 伪元素</span>
+</div>
+
+```
+
+**flex**
+
+**grid**
+
+```css
+.grid {
+    display: grid;
+    height: 300px;
+    background-color: aliceblue;
+    /* item在这个单元格中的位置justify-items属性设置单元格内容的水平位置（左中右），align-items属性设置单元格内容的垂直位置（上中下） */
+    align-items: center;
+    justify-items: center;
+    /* justify-content属性是整个内容区域在容器里面的水平位置（左中右），align-content属性是整个内容区域的垂直位置（上中下）。 */
+    justify-content: center;
+    align-content: center;
+}
+
+...
+<div class="grid">
+	<div class="content">grid content</div>
+</div>
+```
+
+**table-cell**
+
+```css
+.box {
+    width: 300px;
+    height: 300px;
+    display: table-cell;
+    text-align: center;
+    vertical-align: middle;
+}
+...
+<div class="table-cell">
+    <span class="content">table-cell content</span>
+</div>
+```
+
+**writing-mode**
+
+```html
+.box {
+    width: 300px;
+    height: 300px;
+    writing-mode: vertical-lr;
+    text-align: center;
+}
+.content {
+    writing-mode: horizontal-tb;
+    display: inline-block;
+    width: 100%;
+}
+...
+<div class="box">
+    <div class="content">
+        <span>这碗又大又圆，这面又长又宽</span>
+    </div>
+</div>
+```
+
+### 总结
+
+不固定宽高: 
+
+- **posolute + translate**
+- flex
+- grid 
+  - justify-content: center; align-content: center;
+- vertical-align + 伪元素
+  - text-align: center;
+  - 子元素 inline-block
+  - :after {
+        content: '';
+        height: 100%;
+        display: inline-block;
+        vertical-align: middle;
+    }
+- table-cell
+  -  display: table-cell;
+      text-align: center;
+      vertical-align: middle;
+- **writing-mode**
+  - 一层writing-mode: vertical-lr;   text-align: center;
+  - 二层writing-mode: horizontal-tb; display: inline-block; width: 100%
+  - 三层 display:inline-block;
 
