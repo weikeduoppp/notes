@@ -155,12 +155,12 @@
       <div class="writing-mode-vertical-lr">
         <div class="center-wrap-horizontal-tb">
           <div class="writing-mode">
-            <div style="background:rgb(249,205,173);">
-                    hello world!<br>
-                    我是一个纯净的div<br>
-                    block元素<br>
-                    我也居中了!
-                </div>
+            <div style="background: rgb(249, 205, 173)">
+              hello world!<br />
+              我是一个纯净的div<br />
+              block元素<br />
+              我也居中了!
+            </div>
           </div>
         </div>
       </div>
@@ -175,11 +175,32 @@
 
     // this
     function a() {
-      
-      setTimeout(function() {
-        console.log(this)
-      }, 1000)
+      setTimeout(function () {
+        console.log(this);
+      }, 1000);
     }
     // git commitlint https://www.quanzhan.co/archives/168
+
+    // 深拷贝
+    // 1. JSON.parse(JSON.stringify(obj)) 缺点: 拷贝其他引用类型，拷贝函数，循环引用等情况
+
+    // 2. 手写
+    function clone(target, map = new WeakMap()) {
+      // 防止循环引用
+      if (typeof target === "object") {
+        let obj = Array.isArray(target) ? [] : {};
+        // 防止循环引用
+        if (map.get(target)) {
+          return map.get(target);
+        }
+        map.set(target, obj);
+        for (let k in target) {
+          obj[k] = clone(target[k], map); // // 循环
+        }
+        return obj;
+      } else {
+        return target;
+      }
+    }
   </script>
 </html>
