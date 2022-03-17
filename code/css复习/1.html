@@ -170,7 +170,18 @@
     a = 1;
 
     var a;
-    b = 1;
+    // b = 1;
     let b;
+
+    // this
+    function a() {
+      
+      setTimeout(function() {
+        console.log(this)
+      }, 1000)
+    }
+    () => {
+      
+    }
   </script>
 </html>
