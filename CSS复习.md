@@ -80,7 +80,7 @@ BFC使用场景：
 
 2. **左边定宽，右边自适应**，只需要给右边创建BFC即可 
 
-![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/9296ea4771fc42c8b928de0fabf95451~tplv-k3u1fbpfcp-zoom-in-crop-mark:1304:0:0:0.awebp)
+![img](https://images.yewq.top/9296ea4771fc42c8b928de0fabf95451~tplv-k3u1fbpfcp-zoom-in-crop-mark:1304:0:0:0.awebp)
 
 1. BFC可以**阻止浮动元素的覆盖**。父元素没有设置高度，子元素浮动了，不参与父元素高度计算，由于父元素高度为0，导致父元素的兄弟元素向上顶，与子元素重叠，只需给父元素创建BFC即可
 
