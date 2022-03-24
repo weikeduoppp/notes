@@ -203,17 +203,11 @@ Promise.race = function (arr) {
     }
   });
 };
-/* 
-  返回一个在所有给定的promise都已经fulfilled或rejected后的promise，并带有一个对象数组，每个对象表示对应的promise结果。
-
-  当您有多个彼此不依赖的异步任务成功完成时，或者您总是想知道每个promise的结果时，通常使用它。
-  对于每个结果对象，都有一个 status 字符串。如果它的值为 fulfilled，则结果对象上存在一个 value 。如果值为 rejected，则存在一个 reason 。value（或 reason ）反映了每个 promise 决议（或拒绝）的值
-*/
 Promise.allSettled = function (arr) {
   var args = arr.slice();
   return new Promise((resolve, reject) => {
     var remaining = args.length;
-    function res(i, val, reject) {
+    function res(i, val, rejected) {
       try {
         if (val && (typeof val === 'object' || typeof val === 'function')) {
           const { then } = val;
@@ -228,7 +222,7 @@ Promise.allSettled = function (arr) {
           );
           return;
         }
-        if (!reject) {
+        if (!rejected) {
           args[i] = {
             value: val,
             status: 'fulfilled',
@@ -254,6 +248,44 @@ Promise.allSettled = function (arr) {
     }
   });
 };
+
+// 这个方法用于返回第一个成功的 promise 。只要有一个 promise 成功此方法就会终止，它不会等待其他的 promise 全部完成。
+Promise.any = function(arr) {
+  var args = arr.slice();
+  return new Promise((resolve, reject) => {
+    var remaining = args.length;
+    function res(i, val, rejected) {
+      try {
+        if (val && (typeof val === 'object' || typeof val === 'function')) {
+          const { then } = val;
+          then.call(
+            val,
+            function (value) {
+              res(i, value);
+            },
+            function (value) {
+              res(i, value, true);
+            }
+          );
+          return;
+        }
+        if (!rejected) {
+          resolve(val);
+        } else {
+          args[i] = new Error(val);
+        }
+      } catch (error) {
+        args[i] = new Error(error);
+      }
+      if (--remaining === 0) {
+        reject('AggregateError: No Promise in Promise.any was resolved');
+      }
+    }
+    for (let i = 0; i < args.length; i++) {
+      res(i, args[i]);
+    }
+  });
+}
 
 new Promise((resolve, reject) => {
   reject({ test: 1 });
