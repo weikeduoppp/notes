@@ -13,6 +13,7 @@ function Promise(fn) {
   this.then = function (onFulfilled) {
     return new Promise((resolve, rejected) => {
       handle({
+        // 上一个promise的handle
         // 立即执行
         onFulfilled, // then回调
         resolve, //桥梁，将新 Promise 的 resolve 方法，放到前一个 promise 的回调对象中
@@ -27,7 +28,9 @@ function Promise(fn) {
       return;
     }
     if (state === "fulfilled") {
+      // 状态fulfilled 执行回调
       if (!callback.onFulfilled) {
+        // 如果没有回调函数 不会
         callback.resolve(value);
         return;
       }
@@ -45,13 +48,13 @@ function Promise(fn) {
       if (
         newValue &&
         (typeof newValue === "object" || typeof newValue === "function")
-      ) {
+      ) { 
         const { then } = newValue;
         if (typeof then === "function") {
           // newValue 为新产生的 Promise,此时resolve为上个 promise 的resolve
-          //相当于调用了新产生 Promise 的then方法，注入了上个 promise 的resolve 为其回调
+          //相当于调用了新产生 Promise 的then方法，注入了上个 promise 的resolve 为其回调 等待新promise状态fulfilled了再执行上个 promise的resolve 从而改变上个promise的状态
           then.call(newValue, resolve);
-          return;
+          return; // 把第一个 then 中产生的 Promise 的 resolve 函数的执行，延迟到 test 里面的 Promise 的状态为 onFulfilled 的时候再执行，
         }
       }
 
@@ -79,8 +82,8 @@ new Promise((resolve, reject) => {
   .then((data) => {
     console.log("result1", data);
     // 我们常用的链式调用，是用在异步回调中，以解决"回调地狱"的问题
-    //dosomething
-    return test();
+    //dosomething  
+    return test(); 
   })
   .then((data) => {
     console.log("result2", data);
@@ -93,3 +96,5 @@ function test(id) {
     }, 5000);
   });
 }
+
+
