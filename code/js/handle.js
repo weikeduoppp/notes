@@ -24,7 +24,7 @@ function Promise(fn) {
         callback.resolve(value);
         return;
       }
-      const ret = callback.onFulfilled(value); //处理回调 ret可能会是异步函数 
+      const ret = callback.onFulfilled(value); //处理回调 ret可能会是异步函数
       callback.resolve(ret); // 下一个 promise 的resolve
     }
   }
@@ -61,6 +61,39 @@ function Promise(fn) {
 
   fn(resolve);
 }
+
+Promise.all = function (arr) {
+  var args = arr.slice();
+  return new Promise(function (resolve, reject) {
+    let remaining = args.length;
+    function res(i, val) {
+      try {
+        if (val && (typeof val === "object" || typeof val === "function")) {
+          const { then } = val;
+          if (typeof then === "function") {
+            then.call(
+              val,
+              function (value) {
+                res(i, value);
+              },
+              reject
+            );
+            return;
+          }
+        }
+        args[i] = val;
+        if (--remaining === 0) {
+          resolve(args);
+        }
+      } catch (error) {
+        reject(error);
+      }
+    }
+    for (let i = 0; i < args.length; i++) {
+      res(i, args[i]);
+    }
+  });
+};
 
 new Promise((resolve, reject) => {
   resolve({ test: 1 });
