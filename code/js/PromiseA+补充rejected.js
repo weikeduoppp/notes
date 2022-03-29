@@ -120,7 +120,7 @@ function Promise(fn) {
       // newValue
       if (
         newValue &&
-        (typeof newValue === "object" || typeof newValue === "function")
+        (typeof newValue === "object" || typeof newValue === "function") // 一个thenable对象
       ) {
         const { then } = newValue;
         if (typeof then === "function") {
