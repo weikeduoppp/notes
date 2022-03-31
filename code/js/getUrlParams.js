@@ -19,7 +19,6 @@ function new_instance_of(leftValue, rightValue) {
     typeof leftValue !== "object" ||
     typeof rightValue !== "function"
   ) {
-    console.log(typeof leftValue, typeof rightValue);
     throw Error("Right-hand side of " instanceof " is not an object");
   }
 
@@ -36,4 +35,4 @@ function new_instance_of(leftValue, rightValue) {
   }
 }
 
-console.log(new_instance_of(null, Object));
+// console.log(new_instance_of(null, Object));
