@@ -22,11 +22,11 @@ Function.prototype.bind2 = function (t) {
   var context = t || window;
   var self = this;
   var prevArgs = Array.from(arguments).slice(1); // 二次传参
-  var Fbound = function (args) {
+  var Fbound = function () {
     // 如果new 将this指向实例
     return self.apply(this instanceof Fbound ? this : context, [
       ...prevArgs,
-      ...args,
+      ...arguments,
     ]);
   };
   // 继承原函数

@@ -217,16 +217,18 @@ Promise.allSettled = function (arr) {
       try {
         if (val && (typeof val === 'object' || typeof val === 'function')) {
           const { then } = val;
-          then.call(
-            val,
-            function (value) {
-              res(i, value);
-            },
-            function (value) {
-              res(i, value, true);
-            }
-          );
-          return;
+          if (typeof then === 'function') {
+            then.call(
+              val,
+              function (value) {
+                res(i, value);
+              },
+              function (value) {
+                res(i, value, true);
+              }
+            );
+            return;
+          }
         }
         if (!reject) {
           args[i] = {
