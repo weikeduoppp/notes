@@ -1232,6 +1232,10 @@ vnode是现在的虚拟dom，newVnode是新虚拟dom。
 
 ### fiber
 
+`React`内部实现的一套状态更新机制。支持任务不同`优先级`，可中断与恢复，并且恢复后可以复用之前的`中间状态`。
+
+其中每个任务更新单元为`React Element`对应的`Fiber节点`。
+
 为什么需要fiber
 
  React Conf 2017 Fiber介绍视频 
