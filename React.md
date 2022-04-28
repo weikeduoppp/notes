@@ -1802,7 +1802,7 @@ https://github.com/BetaSu/just-react/issues/41
 2. 两个不同类型的元素会产生出不同的树。如果元素由`div`变为`p`，React会销毁`div`及其子孙节点，并新建`p`及其子孙节点。
 3. 开发者可以通过 `key prop`来暗示哪些子元素在不同的渲染下能保持稳定。
 
-Diff分为两类：
+其中element Diff分为两类：
 
 1. 当`newChild`类型为`object`、`number`、`string`，代表同级只有一个节点
 2. 当`newChild`类型为`Array`，同级有多个节点
@@ -1910,12 +1910,17 @@ function reconcileSingleElement(
 第一轮遍历步骤如下：
 
 1. `let i = 0`，遍历`newChildren`，将`newChildren[i]`与`oldFiber`比较，判断`DOM节点`是否可复用。
+
 2. 如果可复用，`i++`，继续比较`newChildren[i]`与`oldFiber.sibling`，可以复用则继续遍历。
-   1. 如果`newChildren`遍历完（即`i === newChildren.length - 1`）或者`oldFiber`遍历完（即`oldFiber.sibling === null`），跳出遍历，**第一轮遍历结束。**
+   
 3. 如果不可复用，分两种情况：
 
-- `key`不同导致不可复用，立即跳出整个遍历，**第一轮遍历结束。**
-- `key`相同`type`不同导致不可复用，会将`oldFiber`标记为`DELETION`，并继续遍历
+   - `key`不同导致不可复用，立即跳出整个遍历，**第一轮遍历结束。**
+
+   - `key`相同`type`不同导致不可复用，会将`oldFiber`标记为`DELETION`，并继续遍历
+
+
+4. 如果`newChildren`遍历完（即`i === newChildren.length - 1`）或者`oldFiber`遍历完（即`oldFiber.sibling === null`），跳出遍历，**第一轮遍历结束。**
 
 
 
