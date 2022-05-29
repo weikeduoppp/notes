@@ -700,7 +700,8 @@ root@iZm5e8kvgejp2ifut80lwyZ:~# docker inspect 8e244fbd1471
         }
     }
 ]
-root@iZm5e8kvgejp2ifut80lwyZ:~# 
+# 查看镜像
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker inspect 镜像名
 ```
 
 #### 进入正在运行的容器 !!!
@@ -798,7 +799,7 @@ wait        Block until a container stops, then print its exit code             
 
 #### 练习
 
-##### nginx
+##### nginx 端口暴露的概念
 
 ```shell
 # 拉取nginx
@@ -831,7 +832,7 @@ root@18380fc6a045:/#
 
 ![image-20220527213948945](https://images.yewq.top/uPic/image-20220527213948945.png)
 
-##### tomcat
+##### tomcat 最小运行环境
 
 ```shell
 # 官网 docker run -it --rm 测试常用 用完则删除
@@ -879,3 +880,306 @@ root@iZm5e8kvgejp2ifut80lwyZ:~# curl localhost:3355
 ```
 
 思考问题: 我们以后要部署项目，还需要进入容器中，是不是十分麻烦，要是有一种技术，可以将容器 内和我们Linux进行映射挂载就好了？我们后面会将数据卷技术来进行挂载操作，也是一个核心内容，这 里大家先听听名词就好，我们很快就会讲到！
+
+##### es + kibana  吃内存 + 增加内存限制
+
+```shell
+# docker stats 容器ID 查看容器 cpu内存 网络状态
+docker stats 
+CONTAINER ID        NAME                CPU %               MEM USAGE / LIMIT     MEM %               NET I/O             BLOCK I/O           PIDS
+f0527fcc2025        tomcat1             0.12%               111.2MiB / 1.953GiB   5.56%               1.14kB / 12.8kB     12.2MB / 0B         20
+^C
+
+# 1. 启动es
+docker run -d --name elasticsearch -p 9200:9200 -p 9300:9300 -e
+"discovery.type=single-node" elasticsearch:7.6.2
+
+# 2、启动之后很卡，使用 docker stats 容器id 查看下cpu状态 ，发现占用的很大
+CONTAINER ID NAME CPU % MEM USAGE /
+LIMIT MEM %
+249ae46da625 elasticsearch 0.00% 1.036GiB /
+1.716GiB 60.37%
+
+# 3. 测试访问
+root@iZm5e8kvgejp2ifut80lwyZ:~# curl localhost:9200
+{
+  "name" : "078167a214e5",
+  "cluster_name" : "docker-cluster",
+  "cluster_uuid" : "xQjo_VXjS0aSHemD62QZfg",
+  "version" : {
+    "number" : "7.6.2",
+    "build_flavor" : "default",
+    "build_type" : "docker",
+    "build_hash" : "ef48eb35cf30adf4db14086e8aabd07ef6fb113f",
+    "build_date" : "2020-03-26T06:34:37.794943Z",
+    "build_snapshot" : false,
+    "lucene_version" : "8.4.0",
+    "minimum_wire_compatibility_version" : "6.8.0",
+    "minimum_index_compatibility_version" : "6.0.0-beta1"
+  },
+  "tagline" : "You Know, for Search"
+}
+
+# 4. 增加内存限制
+docker run -d --name elasticsearch -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" -e ES_JAVA_OPTS="-Xms64m -Xmx512m" elasticsearch:7.6.2
+
+
+```
+
+![image-20220529134958493](https://images.yewq.top/uPic/image-20220529134958493.png)
+
+##### kibana
+
+思考: 两容器怎么互相访问?
+
+![image-20220529130855444](https://images.yewq.top/uPic/image-20220529130855444.png)
+
+#### 可视化
+
+##### portainer
+
+```shell
+docker run -d -p 8088:9000 --restart=always -v /var/run/docker.sock:/var/run/docker.sock --privileged=true portainer/portainer
+```
+
+1. 外网访问 ip:8088
+2. 创建管理员
+3. 选择本地
+
+![image-20220529141604417](https://images.yewq.top/uPic/image-20220529141604417.png)
+
+
+
+##### Rancher
+
+ Rancher（CI/CD再用这个）
+
+```shell
+# 安装rancher-server
+docker run --name rancher-server -p 8000:8080 -v /etc/localtime:/etc/localtime:ro  -d  rancher/server
+# 安装agent
+docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock -v /var/lib/rancher:/var/lib/rancher rancher/agent:v1.2.11 http://47.104.88.94:8000/v1/scripts/D3DBD43F263109BB881F:1577750400000:7M0yBzCw4XSxJklD7TpysYIpI
+```
+
+## Docker 镜像讲解
+
+### 镜像是什么 
+
+镜像是一种轻量级、可执行的独立软件包，用来打包软件运行环境和基于运行环境开发的软件，它包含 运行某个软件所需的所有内容，包括代码、运行时、库、环境变量和配置文件。
+
+### Docker镜像加载原理
+
+> UnionFS 联合文件系统
+
+UnionFS（联合文件系统）：Union文件系统（UnionFS）是一种分层、轻量级并且高性能的文件系统， 它支持对文件系统的修改作为一次提交来一层层的叠加，同时可以将不同目录挂载到同一个虚拟文件系 统下(unite several directories into a single virtual filesystem)。Union 文件系统是 Docker 镜像的基 础。镜像可以通过分层来进行继承，基于基础镜像（没有父镜像），可以制作各种具体的应用镜像。 
+
+特性：一次同时加载多个文件系统，但从外面看起来，只能看到一个文件系统，联合加载会把各层文件 系统叠加起来，这样最终的文件系统会包含所有底层的文件和目录
+
+> Docker镜像加载原理
+
+docker的镜像实际上由一层一层的文件系统组成，这种层级的文件系统UnionFS。
+
+**bootfs(boot file system)**主要包含bootloader和kernel, bootloader主要是引导加载kernel, Linux刚启 动时会加载bootfs文件系统，在Docker镜像的最底层是bootfs。这一层与我们典型的Linux/Unix系统是 一样的，包含boot加载器和内核。当boot加载完成之后整个内核就都在内存中了，此时内存的使用权已 由bootfs转交给内核，此时系统也会卸载bootfs。 
+
+**rootfs (root file system)** ，在bootfs之上。包含的就是典型 Linux 系统中的 /dev, /proc, /bin, /etc 等标 准目录和文件。rootfs就是各种不同的操作系统发行版，比如Ubuntu，Centos等等。
+
+![image-20220529150956566](https://images.yewq.top/uPic/image-20220529150956566.png)
+
+平时我们安装进虚拟机的CentOS都是好几个G，为什么Docker这里才200M？
+
+![image-20220529151025271](https://images.yewq.top/uPic/image-20220529151025271.png)
+
+对于一个精简的OS，rootfs 可以很小，只需要包含最基本的命令，工具和程序库就可以了，因为**底层直 接用Host的kernel**，自己**只需要提供rootfs**就可以了。由此可见对于不同的linux发行版, bootfs基本是一 致的, rootfs会有差别, 因此不同的发行版可以公用bootfs。
+
+### 分层理解
+
+> 分层的镜像
+
+我们可以去下载一个镜像，注意观察下载的日志输出，可以看到是一层一层的在下载！
+
+![image-20220529154341095](/Users/mac/Library/Application Support/typora-user-images/image-20220529154341095.png)
+
+思考：为什么Docker镜像要采用这种分层的结构呢？ 
+
+最大的好处，我觉得莫过于是资源共享了！比如有多个镜像都从相同的Base镜像构建而来，那么宿主机 只需在磁盘上保留一份base镜像，同时内存中也只需要加载一份base镜像，这样就可以为所有的容器服务了，而且镜像的每一层都可以被共享。
+
+ 查看镜像分层的方式可以通过 docker  inspect 命令！
+
+```shell
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker inspect mysql
+...
+"RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:ad6b69b549193f81b039a1d478bc896f6e460c77c1849a4374ab95f9a3d2cea2",
+                "sha256:fba7b131c5c350d828ebea6ce6d52cdc751219c6287c4a7f13a51435b35eac06",
+                "sha256:0798f2528e8383f031ebd3c6d351f7d9f7731b3fd12007e5f2fdcdc4e1efc31a",
+                "sha256:a0c2a050fee24f87fde784c197a8b3eb66a3881b96ea261165ac1a01807ffb80",
+                "sha256:d7a777f6c3a4ded4667f61398eb1f9b380db07bf48876f64d93bf30fb1393f96",
+                "sha256:0d17fee8db40d61d9ca0d85bff8b32ef04bbd09d77e02cc67c454c8f84edb3d8",
+                "sha256:aad27784b7621a3e58bd03e5d798e505fb80b081a5070d7c822e41606b90a5c0",
+                "sha256:1d1f48e448f9b8abb9a2aad1e76d4746b69957882d1ddb9c11115302d45fcbbd",
+                "sha256:c654c2afcbba8c359565df63f6ecee333c9cc6abaeaa39838b05b4465a82758b",
+                "sha256:118fee5d988ac2057ab66d87bbebd1f18b865fb02a03ba0e23762af5b55b0bd5",
+                "sha256:fc8a043a3c7556d9abb4fad3aefa3ab6a5e1c02abda5f924f036c696687d094e",
+                "sha256:d67a9f3f65691979bc9e2b5ee0afcd4549c994f13e1a384ecf3e11f83d82d3f2"
+            ]
+        },
+```
+
+
+
+理解： 
+
+所有的 Docker 镜像都起始于一个基础镜像层，当进行修改或增加新的内容时，就会在当前镜像层之 上，创建新的镜像层。
+
+ 举一个简单的例子，
+
+假如基于 Ubuntu Linux 16.04 创建一个新的镜像，这就是新镜像的第一层；如果 在该镜像中添加 Python包，就会在基础镜像层之上创建第二个镜像层；如果继续添加一个安全补丁，就 会创建第三个镜像层。 
+
+该镜像当前已经包含 3 个镜像层，如下图所示（这只是一个用于演示的很简单的例子）。
+
+![image-20220529154723095](https://images.yewq.top/uPic/image-20220529154723095.png)
+
+在添加额外的镜像层的同时，镜像始终保持是当前所有镜像的组合，理解这一点非常重要。
+
+下图中举了 一个简单的例子，每个镜像层包含 3 个文件，而镜像包含了来自两个镜像层的 6 个文件。eg: app版本v1
+
+![image-20220529154854425](https://images.yewq.top/uPic/image-20220529154854425.png)
+
+下图中展示了一个稍微复杂的三层镜像，在外部看来整个镜像只有 6 个文件，这是因为最上层中的文件 7 是文件 5 的一个更新版本。 eg: app_v2
+
+![image-20220529155019216](https://images.yewq.top/uPic/image-20220529155019216.png)
+
+这种情况下，上层镜像层中的文件覆盖了底层镜像层中的文件。这样就使得文件的更新版本作为一个新 镜像层添加到镜像当中。
+
+**Docker 通过存储引擎（新版本采用快照机制）的方式来实现镜像层堆栈，并保证多镜像层对外展示为统 一的文件系统。** 
+
+Linux 上可用的存储引擎有 AUFS、Overlay2、Device Mapper、Btrfs 以及 ZFS。顾名思义，每种存储 引擎都基于 Linux 中对应的文件系统或者块设备技术，并且每种存储引擎都有其独有的性能特点。
+
+ Docker 在 Windows 上仅支持 windowsfilter 一种存储引擎，该引擎基于 NTFS 文件系统之上实现了分 层和 CoW[1]。
+
+ 下图展示了与系统显示相同的三层镜像。**所有镜像层堆叠并合并，对外提供统一的视图**。
+
+![image-20220529155219144](https://images.yewq.top/uPic/image-20220529155219144.png)
+
+> 特点
+
+Docker镜像都是只读的，当容器启动时，一个新的可写层被加载到镜像的顶部！
+
+ 这一层就是我们通常说的容器层，容器之下的都叫镜像层！
+
+![image-20220529154141008](https://images.yewq.top/uPic/image-20220529154141008.png)
+
+### 镜像Commit
+
+docker commit 从容器创建一个新的镜像。
+
+``` shell
+# 语法
+docker commit -m="提交的描述信息" -a="作者" 容器id 要创建的目标镜像名:[标签名]
+
+# 1.生成我们的镜像
+# 注意：commit的时候，容器的名字不能有大写，否则报错：invalid reference format
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker commit -a="yewq" -m="create app" f0527fcc2025 tomcat_yewq:1.0
+sha256:4c3f26293807272881721e76bb381028e5ec7944bc5150da4c03846347bbbe7b
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker images # 查看到我们的镜像
+REPOSITORY            TAG                 IMAGE ID            CREATED             SIZE
+tomcat_yewq           1.0                 4c3f26293807        9 seconds ago       684MB
+nginx                 latest              605c77e624dd        5 months ago        141MB
+tomcat                9.0                 b8e65a4d736d        5 months ago        680MB
+tomcat                latest              fb5657adc892        5 months ago        680MB
+node                  latest              a283f62cb84b        5 months ago        993MB
+mysql                 latest              3218b38490ce        5 months ago        516MB
+centos                latest              5d0da3dc9764        8 months ago        231MB
+portainer/portainer   latest              580c0e4e98b0        14 months ago       79.1MB
+rancher/server        latest              98d8bb571885        2 years ago         1.08GB
+elasticsearch         7.6.2               f29a1ee41030        2 years ago         791MB
+rancher/agent         v1.2.11             1cc7591af4f5        3 years ago         243MB
+# 2. 使用我们的镜像
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -d -p 3355:8080 tomcat_yewq:1.0
+9d8fddce0e848b53e88db970211fce64d1fb5b25667438b5d1db1c65edd027bc
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker ps
+CONTAINER ID        IMAGE                 COMMAND                  CREATED             STATUS              PORTS                              NAMES
+9d8fddce0e84        tomcat_yewq:1.0       "catalina.sh run"        4 seconds ago       Up 4 seconds        0.0.0.0:3355->8080/tcp             confident_volhard
+701fe7845de4        rancher/server        "/usr/bin/entry /usr…"   2 hours ago         Up 2 hours          3306/tcp, 0.0.0.0:8000->8080/tcp   rancher-server
+bd390c60926c        portainer/portainer   "/portainer"             2 hours ago         Up 2 hours          0.0.0.0:8088->9000/tcp             focused_ardinghelli
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker exec -it 9d8fddce0e84 /bin/bash
+root@9d8fddce0e84:/usr/local/tomcat# ls
+BUILDING.txt	 NOTICE		RUNNING.txt  lib	     temp	   work
+CONTRIBUTING.md  README.md	bin	     logs	     webapps
+LICENSE		 RELEASE-NOTES	conf	     native-jni-lib  webapps.dist
+root@9d8fddce0e84:/usr/local/tomcat# cd webapps  # 看到我们的容器层
+root@9d8fddce0e84:/usr/local/tomcat/webapps# ls
+ROOT  docs  examples  host-manager  manager
+```
+
+## 容器数据卷
+
+### 什么是容器数据卷
+
+**docker的理念回顾：**
+
+将应用和运行的环境打包镜像形成容器运行，运行可以伴随着容器，但是我们对于数据的要求，是希望能够 持久化的！
+
+ 就好比，你安装一个MySQL，结果你把容器删了，就相当于删库跑路了，这TM也太扯了吧！
+
+ 所以我们希望容器之间有可能可以共享数据，Docker容器产生的数据，如果不通过docker commit 生成 新的镜像，使得数据作为镜像的一部分保存下来，那么当容器删除后，数据自然也就没有了！这样是行 不通的！ 
+
+为了能保存数据在Docker中我们就可以使用卷！让数据挂载到我们本地！这样数据就不会因为容器删除 而丢失了！
+
+**作用：** 
+
+卷就是目录或者文件，存在一个或者多个容器中，由docker挂载到容器，但不属于联合文件系统，因此 能够绕过 Union File System ， 提供一些用于持续存储或共享数据的特性：
+
+ **卷的设计目的就是数据的持久化，完全独立于容器的生存周期，因此Docker不会在容器删除时删除其挂 载的数据卷.**
+
+特点：
+
+ 1、数据卷可在容器之间共享或重用数据 
+
+2、卷中的更改可以直接生效 
+
+3、数据卷中的更改不会包含在镜像的更新中 
+
+4、数据卷的生命周期一直持续到没有容器使用它为止 
+
+所以：总结一句话： 就是容器的持久化，以及容器间的继承和数据共享！
+
+### 使用数据卷
+
+> 方式一: 容器中直接使用命令来添加
+
+挂载
+
+```shell
+# 命令 -v 主机目录:容器目录
+docker run -it -v 主机目录:容器目录 镜像名
+
+# 测试 双向绑定
+root@iZm5e8kvgejp2ifut80lwyZ:~/volume# docker run -it -v ~/volume:/home centos /bin/bash
+[root@04a31b052167 /]# ls
+bin  dev  etc  home  lib  lib64  lost+found  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
+[root@04a31b052167 /]# cd /home/
+[root@04a31b052167 home]# ls
+[root@04a31b052167 home]# touch test.java
+
+# 查看数据卷是否挂载成功 docker inspect 容器id
+
+# 容器内
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker attach 04a31b052167
+[root@04a31b052167 home]# ls
+test.java
+[root@04a31b052167 home]# cat test.java 
+# 输入 # 容器停止 主机修改也会同步到容器
+[root@04a31b052167 home]# 
+
+# 宿主机内
+root@iZm5e8kvgejp2ifut80lwyZ:~# cd volume/
+root@iZm5e8kvgejp2ifut80lwyZ:~/volume# ls
+test.java
+root@iZm5e8kvgejp2ifut80lwyZ:~/volume# vi test.java 
+root@iZm5e8kvgejp2ifut80lwyZ:~/volume# 
+```
+
+![image-20220529231615416](https://images.yewq.top/uPic/image-20220529231615416.png)
