@@ -391,6 +391,7 @@ docker run [可选项] image [COMMAND][ARG...]
 		容器端口
 		ip:容器端口	
 -P # 随机端口映射（大写）
+-e # 环境配置
 
 # 测试 # 使用centos进行用交互模式启动容器，在容器内执行/bin/bash命令！
 root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -it centos /bin/bash 
@@ -1183,3 +1184,267 @@ root@iZm5e8kvgejp2ifut80lwyZ:~/volume#
 ```
 
 ![image-20220529231615416](https://images.yewq.top/uPic/image-20220529231615416.png)
+
+### 实战: 安装mysql 数据持久化
+
+查看官方启动建议 https://hub.docker.com/_/mysql
+
+```shell
+# 可以挂载多个 -e 配置
+root@iZm5e8kvgejp2ifut80lwyZ:/home# docker run -d -p 3310:3306 -v /home/mysql/conf:/etc/mysql/conf.d -v /home/mysql/data:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=123456 mysql:5.7
+
+# 挂载成功
+root@iZm5e8kvgejp2ifut80lwyZ:/home# ls
+manager  mysql  temp  yewq.js
+root@iZm5e8kvgejp2ifut80lwyZ:/home# cd mysql/
+root@iZm5e8kvgejp2ifut80lwyZ:/home/mysql# ls
+conf  data
+root@iZm5e8kvgejp2ifut80lwyZ:/home/mysql# cd data
+root@iZm5e8kvgejp2ifut80lwyZ:/home/mysql/data# ls
+auto.cnf    ca.pem           client-key.pem  ibdata1      ib_logfile1  mysql               private_key.pem  server-cert.pem  sys
+ca-key.pem  client-cert.pem  ib_buffer_pool  ib_logfile0  ibtmp1       performance_schema  public_key.pem   server-key.pem
+
+# 测试连接 3310
+
+# 创建数据库后 本地数据库存在
+root@iZm5e8kvgejp2ifut80lwyZ:/home/mysql/data# ls
+auto.cnf    ca.pem           client-key.pem  ibdata1      ib_logfile1  mysql               private_key.pem  server-cert.pem  sys
+ca-key.pem  client-cert.pem  ib_buffer_pool  ib_logfile0  ibtmp1       performance_schema  public_key.pem   server-key.pem   test
+
+# 删除容器 数据还在
+root@iZm5e8kvgejp2ifut80lwyZ:/home/mysql/data# ls
+auto.cnf    ca.pem           client-key.pem  ibdata1      ib_logfile1  mysql               private_key.pem  server-cert.pem  sys
+ca-key.pem  client-cert.pem  ib_buffer_pool  ib_logfile0  ibtmp1       performance_schema  public_key.pem   server-key.pem   test
+
+```
+
+实现了mysql 数据持久化
+
+### 具名和匿名挂载
+
+```shell
+# 匿名挂载 -v 容器路径
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -d -P --name nginx1 -v /etc/nginx nginx
+6180fe7f611bcd8bc3f5fbe8fd1786affa21b63a35c5e3ad18245776d9912271
+
+# 使用docker volume ls 来维护
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker volume --help
+Commands:
+  create      Create a volume
+  inspect     Display detailed information on one or more volumes
+  ls          List volumes
+  prune       Remove all unused volumes
+  rm          Remove one or more volumes
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker volume ls
+DRIVER              VOLUME NAME
+local               0488f3f27ba43a525b8832ecf66ba41b42207291c8b88e1270ef1185da6a5a51
+...
+
+# 具名挂载 -v 具名:容器路径
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -d -P --name nginx2 -v juming_nginx:/etc/nginx nginx
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker volume ls
+DRIVER              VOLUME NAME
+local               juming_nginx
+
+# 查看 volume 的 元数据
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker volume inspect juming_nginx
+[
+    {
+        "CreatedAt": "2022-05-30T17:02:21+08:00",
+        "Driver": "local",
+        "Labels": null,
+        "Mountpoint": "/var/lib/docker/volumes/juming_nginx/_data",
+        "Name": "juming_nginx",
+        "Options": {},
+        "Scope": "local"
+    }
+]
+
+root@iZm5e8kvgejp2ifut80lwyZ:~# cd /var/lib/docker
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker# ls
+builder  containerd  containers  image  network  overlay2  plugins  runtimes  swarm  tmp  trust  volumes
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker# cd volumes/
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes# ls
+0488f3f27ba43a525b8832ecf66ba41b42207291c8b88e1270ef1185da6a5a51  a8ecc1fb33def318ce46e528ffebbf5b4b3f087d4be0ca295f719670ea3d4f87  metadata.db
+51de574d4b8f5cabfded80bd9dd5bb12f0ba6736d3b4e1e6c158a0a16641c288  f34eef21093f0ec0e0c706ccbcf9d3cb6524998cfc184954dc5307f13261e5e3
+68477c2c8218874e829ab86da4d4ae298a6c5d2572fbddb857f76692fee7acdc  juming_nginx
+```
+
+发下挂载的volume 路径是  `/var/lib/docker/volumes/xxxx/_data` 
+
+大多数是具名挂载, 方便我们找到相对应的 volume
+
+**怎么判断挂载的是卷名而不是本机目录名？**
+
+```shell
+-v 容器路径				# 匿名挂载
+-v 具名:容器路径	 # 具名挂载 不带 /
+-v /xx:容器路径		# 指定路径挂载
+```
+
+拓展: 
+
+```shell
+# 通过 -v 容器路径:ro/rw 改变读写权限
+ro readonly  # 只读
+rw readwrite # 可读可写
+
+# 设置, 代表了对容器挂载的内容有的限定
+docker run -d -P --name nginx2 -v juming_nginx:/etc/nginx:ro nginx
+docker run -d -P --name nginx2 -v juming_nginx:/etc/nginx:rw nginx
+
+# ro 代表挂载路径只能宿主机来操作, 容器只读 
+# 测试
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes# docker run -d -P --name nginx3 -v juming_nginx_ro:/etc/nginx:ro nginx
+4a2d4eac10771db64f839b608f9a4b726b32a4ad2ef99d99234c40d68c7c5dbd
+
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes# cd juming_nginx_ro/
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes/juming_nginx_ro# cd _data/
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes/juming_nginx_ro/_data# ls
+conf.d  fastcgi_params  mime.types  modules  nginx.conf  scgi_params  uwsgi_params
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes/juming_nginx_ro/_data# touch test.text
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes/juming_nginx_ro/_data# ls
+conf.d  fastcgi_params  mime.types  modules  nginx.conf  scgi_params  test.text  uwsgi_params
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes/juming_nginx_ro/_data# docker exec -it nginx3 /bin/bash
+
+root@4a2d4eac1077:/# cd /etc/nginx/
+root@4a2d4eac1077:/etc/nginx# ls
+conf.d		mime.types  nginx.conf	 test.text
+fastcgi_params	modules     scgi_params  uwsgi_params
+root@4a2d4eac1077:/etc/nginx# touch container.text
+touch: cannot touch 'container.text': Read-only file system
+root@4a2d4eac1077:/etc/nginx# 
+```
+
+> 方法二: Dockerfile VOLUME 指定
+
+DockerFile 是用来构建Docker镜像的构建文件，是由一些列命令和参数构成的脚本
+
+### 初识DockerFile
+
+```shell
+# 1. 在我们宿主机 /home 下 新建docker-test-volume文件夹
+root@iZm5e8kvgejp2ifut80lwyZ:~# cd /home
+root@iZm5e8kvgejp2ifut80lwyZ:/home# ls
+manager  mysql  temp  yewq.js
+root@iZm5e8kvgejp2ifut80lwyZ:/home# mdkir docker-test-volume
+No command 'mdkir' found, did you mean:
+ Command 'mkdir' from package 'coreutils' (main)
+ Command 'mdir' from package 'mtools' (main)
+mdkir: command not found
+root@iZm5e8kvgejp2ifut80lwyZ:/home# mkdir docker-test-volume
+root@iZm5e8kvgejp2ifut80lwyZ:/home# ls
+docker-test-volume  manager  mysql  temp  yewq.js
+root@iZm5e8kvgejp2ifut80lwyZ:/home# vim dockerfile
+# 2. 创建编写dockerfile文件
+root@iZm5e8kvgejp2ifut80lwyZ:/home# cat dockerfile 
+FROM centos
+VOLUME ["container1", "container2"]
+CMD echo "--------end--------"
+CMD /bin/bash
+# 3. docker build 生成镜像  
+# -f dockerfile路径
+# -t 生成镜像名 
+# !!注意  最后有点 需要在dockerfile目录下
+root@iZm5e8kvgejp2ifut80lwyZ:/home/docker-test-volume# docker build -f /home/docker-test-volume/dockerfile -t yewq/centos:1.0 .
+Sending build context to Docker daemon  2.048kB
+Step 1/4 : FROM centos  # 一层一层写入
+ ---> 5d0da3dc9764
+Step 2/4 : VOLUME ["container1", "container2"]
+ ---> Running in 13dcbd407471
+Removing intermediate container 13dcbd407471
+ ---> 32491c3fee54
+Step 3/4 : CMD echo "--------end--------"
+ ---> Running in 924a5b532fd8
+Removing intermediate container 924a5b532fd8
+ ---> 536a12ca5087
+Step 4/4 : CMD /bin/bash
+ ---> Running in b749b3cb36c8
+Removing intermediate container b749b3cb36c8
+ ---> f3580f50b2b3
+Successfully built f3580f50b2b3
+Successfully tagged yewq/centos:latest
+root@iZm5e8kvgejp2ifut80lwyZ:/home/docker-test-volume# docker images
+REPOSITORY            TAG                 IMAGE ID            CREATED             SIZE
+yewq/centos           latest              f3580f50b2b3        12 seconds ago      231MB
+
+# 4. 启动容器
+root@iZm5e8kvgejp2ifut80lwyZ:/home/docker-test-volume# docker run -it f3580f50b2b3 /bin/bash
+[root@ecf99b5d9eb2 /]# ls
+# 数据卷 container1  container2 
+bin  container1  container2  dev  etc  home  lib  lib64  lost+found  media  mnt  opt  proc  root  run  sbin  srv  sys  tmp  usr  var
+
+# 5. 数据卷内新建文件
+[root@ecf99b5d9eb2 /]# cd container1
+[root@ecf99b5d9eb2 container1]# touch test.txt 
+
+# 6. 查看宿主机 数据卷默认位置上
+root@iZm5e8kvgejp2ifut80lwyZ:/var/lib/docker/volumes/ad33a0aa9a4abe2c01fbe7d71f7645345e6ea571cb84c07c11e61f01dcd8197f/_data# ls
+test.txt
+```
+
+![image-20220530225128604](https://images.yewq.top/uPic/image-20220530225128604.png)
+
+这方法常使用. 常常构建我们的镜像
+
+假设构建镜像时没挂载卷, 要手动挂载 -v 卷名:容器内路径
+
+### 数据卷容器
+
+命名的容器挂载数据卷，其他容器通过挂载这个（父容器）实现数据共享，挂载数据卷的容器，称之为 数据卷容器。
+
+![image-20220531000400056](https://images.yewq.top/uPic/image-20220531000400056.png)
+
+以 yewq/centos 为模板，运行容器 docker01 , docker01作为父容器,  docker02，docker03，--volume-from docker01  他们都会具有容器卷
+
+
+
+命令: `-volumes-from` 容器名
+
+```shell
+# 1. 启动docker01 在数据卷内新增文件
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -it --name docker01 yewq/centos:1.0 /bin/bash
+[root@80d78b3fa394 /]# cd container1
+[root@80d78b3fa394 container1]# touch dockder01.txt 
+# ctrl+p+a 退出
+# 2. 创建 docker02, ~03 继承 docker01 --volumes-from 容器名
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -it --name docker02 --volumes-from docker01 yewq/centos:1.0 /bin/bash
+[root@a1ec2d97ec4e /]# cd container1
+[root@a1ec2d97ec4e container1]# touch docker02.txt
+[root@a1ec2d97ec4e container1]# ls
+dockder01.txt  docker02.txt
+# 退出
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker run -it --name docker03 --volumes-from docker01 yewq/centos:1.0 /bin/bash
+[root@612fd7cb3acc /]# cd container1
+[root@612fd7cb3acc container1]# touch docker03.txt
+[root@612fd7cb3acc container1]# ls
+dockder01.txt  docker02.txt  docker03.txt
+
+# 3. 删除docker01 看docker02, 更新后, 03是否能访问
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker rm -f docker01
+docker01
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker attach docker02
+[root@a1ec2d97ec4e container1]# ls 
+dockder01.txt  docker02.txt  docker03.txt
+[root@a1ec2d97ec4e container1]# touch docker02.update.tx
+# 退出
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker attach docker03
+[root@612fd7cb3acc container1]# ls
+dockder01.txt  docker02.txt  docker02.update.tx  docker03.txt
+
+
+```
+
+**得出结论： 容器之间配置信息的传递，数据卷的生命周期一直持续到没有容器使用它为止。 存储在本机的文件则会一直保留！**
+
+实现 多个mysql 数据共享!
+
+```shell
+docker run -d -p 3310:3306 -v /etc/mysql/conf.d -v /var/lib/mysql --name mysql01 -e MYSQL_ROOT_PASSWORD=123456 mysql:5.7
+
+docker run -d -p 3310:3306 --name mysql02 --volumes-from mysql01 -e MYSQL_ROOT_PASSWORD=123456 mysql:5.7
+```
+
+
+
+![image-20220530233630530](https://images.yewq.top/uPic/image-20220530233630530.png)
