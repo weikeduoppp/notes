@@ -1082,6 +1082,7 @@ docker commit -m="提交的描述信息" -a="作者" 容器id 要创建的目标
 
 # 1.生成我们的镜像
 # 注意：commit的时候，容器的名字不能有大写，否则报错：invalid reference format
+# docker commit -a 作者 -m 信息 容器id 镜像名:TAG
 root@iZm5e8kvgejp2ifut80lwyZ:~# docker commit -a="yewq" -m="create app" f0527fcc2025 tomcat_yewq:1.0
 sha256:4c3f26293807272881721e76bb381028e5ec7944bc5150da4c03846347bbbe7b
 root@iZm5e8kvgejp2ifut80lwyZ:~# docker images # 查看到我们的镜像
@@ -1320,7 +1321,9 @@ root@4a2d4eac1077:/etc/nginx#
 
 DockerFile 是用来构建Docker镜像的构建文件，是由一些列命令和参数构成的脚本
 
-### 初识DockerFile
+### 初识DockerFile 
+
+### docker build
 
 ```shell
 # 1. 在我们宿主机 /home 下 新建docker-test-volume文件夹
@@ -1448,3 +1451,296 @@ docker run -d -p 3310:3306 --name mysql02 --volumes-from mysql01 -e MYSQL_ROOT_P
 
 
 ![image-20220530233630530](https://images.yewq.top/uPic/image-20220530233630530.png)
+
+## DockerFile
+
+大家想想，Nginx，tomcat，mysql 这些镜像都是哪里来的？官方能写，我们不能写吗？ 
+
+我们要研究自己如何做一个镜像，而且我们写的微服务项目以及springboot打包上云部署，Docker就是 最方便的。
+
+ 微服务打包成镜像，任何装了Docker的地方，都可以下载使用，极其的方便。 
+
+流程：开发应用=>DockerFile=>打包为镜像=>上传到仓库（私有仓库，公有仓库）=> 下载镜像 => 启动 运行。 
+
+还可以方便移植！
+
+### DockerFile介绍
+
+Dockerfile是用来构建Docker镜像的构建文件. 是一系列命令和参数组成的脚本
+
+构建步骤: 
+
+1. 编写DockerFile文件
+2. Docker build 构建一个镜像
+3. docker run 运行镜像
+4. docker push 发布镜像(dockerHub, 阿里云镜像仓库)
+
+官网镜像 版本点击去是dockerfile
+
+![image-20220531190211072](https://images.yewq.top/uPic/image-20220531190211072.png)
+
+![image-20220531190951920](https://images.yewq.top/uPic/image-20220531190951920.png)
+
+### DockerFile构建流程
+
+**基础知识:** 
+
+1. 每个指令大写 且需要至少一个参数
+2. 指令从上到下, 顺序执行
+3. 表示注释#
+4. 每个指令都会生出一个镜像层, 并对镜像进行提交
+
+![image-20220531192007635](https://images.yewq.top/uPic/image-20220531192007635.png)
+
+Dockerfile面向开发，Docker镜像成为交付标准，Docker容器则涉及部署与运维，三者缺一不可！
+
+**步骤:**
+
+- DockerFile: 构建文件, 源代码
+- DockerImages:  通过dockerfile生出的镜像, 最终发布和运行的产品
+- Docker容器: 容器是镜像运行的状态
+
+### DockerFile指令
+
+![image-20220531190446446](https://images.yewq.top/uPic/image-20220531190446446.png)
+
+```dockerfile
+FROM       # 基础镜像 一切从这里开始
+MAINTAINER # 镜像是谁写的，姓名+邮箱
+RUN    		 # 镜像构建的时候需要运行的命令
+ADD    		 # 步骤：tomcat 镜像，这个tomcat压缩包  tar.gz  自动解压
+WORKDIR		 # 镜像的工作目录
+VOLUME     # 挂载的目录
+EXPOSE 		 # 保留端口配置
+CMD        # 指定这个容器启动的hi后要运行的命令(只有最后一个会生效，可被替代)
+ENTRYPOINT # 指定这个容器启动的时候要运行的命令(可追加命令)
+ONBUILD    # 当构建被继承 DockerFIle 这个时候就会运行
+COPY       # 类似ADD,将文件拷贝到镜像中
+ENV        # 构建的时候设置环境变量
+```
+
+### 实战测试
+
+> 自定义 centos
+
+![image-20220531203737672](https://images.yewq.top/uPic/image-20220531203737672.png)
+
+目的：使我们自己的镜像具备如下：登陆后的默认路径、vim编辑器、查看网络配置ifconfig支持 
+
+准备编写DockerFlie文件
+
+```shell
+# 1. 编写  yum停止 : https://stackoverflow.com/questions/70963985/error-failed-to-download-metadata-for-repo-appstream-cannot-prepare-internal
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# cat centos-dockerfile 
+FROM centos
+MAINTAINER kuangshen<24736743@qq.com>
+ENV MYPATH /usr/local
+WORKDIR $MYPATH
+
+RUN cd /etc/yum.repos.d/
+RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+
+RUN yum -y install vim
+RUN yum -y install net-tools
+
+EXPOSE 80
+CMD echo $MYPATH
+CMD echo "----------end--------"
+CMD /bin/bash
+
+# 2. 构建
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker build -f /home/dockerfile/centos-dockerfile -t mycentos:1.0 .
+
+...
+Successfully built c70dd45d8ffa
+Successfully tagged mycentos:1.0
+
+# 3. 运行
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker run -it mycentos:1.0
+[root@d2c57639eb61 local]# pwd
+/usr/local
+[root@d2c57639eb61 local]# vim
+[root@d2c57639eb61 local]# ifconfig
+eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+        inet 172.17.0.9  netmask 255.255.0.0  broadcast 172.17.255.255
+        ether 02:42:ac:11:00:09  txqueuelen 0  (Ethernet)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+        inet 127.0.0.1  netmask 255.0.0.0
+        loop  txqueuelen 1  (Local Loopback)
+        RX packets 0  bytes 0 (0.0 B)
+        RX errors 0  dropped 0  overruns 0  frame 0
+        TX packets 0  bytes 0 (0.0 B)
+        TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+
+# 4. 列出镜像地的变更历史
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker history c70dd45d8ffa
+IMAGE               CREATED             CREATED BY                                      SIZE                COMMENT
+c70dd45d8ffa        5 minutes ago       /bin/sh -c #(nop)  CMD ["/bin/sh" "-c" "/bin…   0B                  
+6ac4297d5d11        5 minutes ago       /bin/sh -c #(nop)  CMD ["/bin/sh" "-c" "echo…   0B                  
+ee79dc9bef36        5 minutes ago       /bin/sh -c #(nop)  CMD ["/bin/sh" "-c" "echo…   0B                  
+b1697ae171ff        5 minutes ago       /bin/sh -c #(nop)  EXPOSE 80                    0B                  
+7cb3405ecbff        5 minutes ago       /bin/sh -c yum -y install net-tools             28.4MB              
+255cf66f12a8        5 minutes ago       /bin/sh -c yum -y install vim                   66.3MB              
+fa47d3c5d277        5 minutes ago       /bin/sh -c sed -i 's|#baseurl=http://mirror.…   8.8kB               
+63c0f56b6255        5 minutes ago       /bin/sh -c sed -i 's/mirrorlist/#mirrorlist/…   8.82kB              
+4cb1e376b671        5 minutes ago       /bin/sh -c cd /etc/yum.repos.d/                 0B                  
+27e30567dfce        8 minutes ago       /bin/sh -c #(nop) WORKDIR /usr/local            0B                  
+5753ee2db1f9        8 minutes ago       /bin/sh -c #(nop)  ENV MYPATH=/usr/local        0B                  
+31c10a83f533        8 minutes ago       /bin/sh -c #(nop)  MAINTAINER kuangshen<2473…   0B                  
+5d0da3dc9764        8 months ago        /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B                  
+<missing>           8 months ago        /bin/sh -c #(nop)  LABEL org.label-schema.sc…   0B                  
+<missing>           8 months ago        /bin/sh -c #(nop) ADD file:805cb5e15fb6e0bb0…   231MB      
+```
+
+> CMD和ENTRYPOINT的区别
+
+### CMD和ENTRYPOINT的区别
+
+我们之前说过，两个命令都是指定一个容器启动时要运行的命令.
+
+CMD : Dockerfile 中可以有多个CMD 指令, 如果是CMD是启动时要运行的命令,  在run时追加命令的话, CMD最后一个命令会被替换.
+
+ENTRYPOINT:  docker run 之后的参数会被当做参数传递给 ENTRYPOINT，之后形成新的命令组合！可以直接追加参数
+
+测试:
+
+```shell
+# CMD 测试
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# vim cmd-dockefile
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# cat cmd-dockefile 
+FROM centos
+
+CMD ["ls", "-a"]
+
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker build -f cmd-dockefile cmd-test:1.0 .
+"docker build" requires exactly 1 argument.
+See 'docker build --help'.
+
+Usage:  docker build [OPTIONS] PATH | URL | - [flags]
+
+Build an image from a Dockerfile
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker build -f cmd-dockefile -t cmd-test:1.0 .
+Sending build context to Docker daemon  3.072kB
+Step 1/2 : FROM centos
+ ---> 5d0da3dc9764
+Step 2/2 : CMD ["ls", "-a"]
+ ---> Running in 3cf2eb9668bf
+Removing intermediate container 3cf2eb9668bf
+ ---> 26c52b4c5e25
+Successfully built 26c52b4c5e25
+Successfully tagged cmd-test:1.0
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker run cmd-test:1.0
+.
+..
+.dockerenv
+bin
+dev
+etc
+home
+lib
+lib64
+lost+found
+media
+mnt
+opt
+proc
+root
+run
+sbin
+srv
+sys
+tmp
+usr
+var
+
+# 直接追加报错
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker run cmd-test:1.0 -l
+docker: Error response from daemon: OCI runtime create failed: container_linux.go:348: starting container process caused "exec: \"-l\": executable file not found in $PATH": unknown.
+# 替换
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker run cmd-test:1.0 ls -l -a
+total 56
+drwxr-xr-x   1 root root 4096 Jun  1 02:52 .
+
+```
+
+
+
+```shell
+# ENTRYPOINT
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker build -f cmd-entrypoint-dockerfile -t cmd-entrypoint-test:1.0 .
+Sending build context to Docker daemon  4.096kB
+Step 1/2 : FROM centos
+ ---> 5d0da3dc9764
+Step 2/2 : ENTRYPOINT ["ls", "-a"]
+ ---> Running in 802459dd3749
+Removing intermediate container 802459dd3749
+ ---> 8205823287d5
+Successfully built 8205823287d5
+Successfully tagged cmd-entrypoint-test:1.0
+
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker run cmd-entrypoint-test:1.0
+.
+..
+.dockerenv
+bin
+dev
+etc
+home
+lib
+lib64
+lost+found
+media
+mnt
+opt
+proc
+root
+run
+sbin
+srv
+sys
+tmp
+usr
+var
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker run cmd-entrypoint-test:1.0 -l
+total 56
+drwxr-xr-x   1 root root 4096 Jun  1 03:05 .
+drwxr-xr-x   1 root root 4096 Jun  1 03:05 ..
+-rwxr-xr-x   1 root root    0 Jun  1 03:05 .dockerenv
+lrwxrwxrwx   1 root root    7 Nov  3  2020 bin -> usr/bin
+```
+
+> 安装nvm 配置node
+
+https://segmentfault.com/a/1190000021524481
+
+```shell
+export NVM_NODEJS_ORG_MIRROR=https://registry.npm.taobao.org/
+```
+
+https://blog.csdn.net/weixin_39559071/article/details/110106683	
+
+```dockerfile
+FROM centos
+MAINTAINER yewq<yewq1995@gmail.com>
+
+RUN cd /etc/yum.repos.d/
+RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+
+RUN yum -y install vim
+RUN yum -y install net-tools
+RUN yum -y install wget && mkdir /usr/node && cd /usr/node && wget https://nodejs.org/download/release/v12.16.3/node-v12.16.3-linux-x64.tar.gz && tar -xzvf node-v12.16.3-linux-x64.tar.gz
+
+ENV PATH=/usr/node/node-v12.16.3-linux-x64/bin:$PATH
+RUN npm config set registry=https://registry.npm.taobao.org && npm install -g yarn && npm install -g pm2
+
+EXPOSE 3305
+
+CMD echo "-----end-----"
+```
