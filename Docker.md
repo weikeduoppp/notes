@@ -1521,7 +1521,7 @@ ENV        # 构建的时候设置环境变量
 
 ### 实战测试
 
-> 自定义 centos
+#### 自定义 centos
 
 ![image-20220531203737672](https://images.yewq.top/uPic/image-20220531203737672.png)
 
@@ -1598,9 +1598,7 @@ fa47d3c5d277        5 minutes ago       /bin/sh -c sed -i 's|#baseurl=http://mir
 <missing>           8 months ago        /bin/sh -c #(nop) ADD file:805cb5e15fb6e0bb0…   231MB      
 ```
 
-> CMD和ENTRYPOINT的区别
-
-### CMD和ENTRYPOINT的区别
+#### CMD和ENTRYPOINT的区别
 
 我们之前说过，两个命令都是指定一个容器启动时要运行的命令.
 
@@ -1715,7 +1713,7 @@ drwxr-xr-x   1 root root 4096 Jun  1 03:05 ..
 lrwxrwxrwx   1 root root    7 Nov  3  2020 bin -> usr/bin
 ```
 
-> 安装nvm 配置node
+#### 安装nvm 配置node
 
 https://segmentfault.com/a/1190000021524481
 
@@ -1724,6 +1722,12 @@ export NVM_NODEJS_ORG_MIRROR=https://registry.npm.taobao.org/
 ```
 
 https://blog.csdn.net/weixin_39559071/article/details/110106683	
+
+安装 nvm 出现nvm:  commad not found
+
+https://stackoverflow.com/questions/25899912/how-to-install-nvm-in-docker
+
+https://stackoverflow.com/questions/42079122/how-to-install-nvm-in-a-dockerfile
 
 ```dockerfile
 FROM centos
@@ -1744,3 +1748,330 @@ EXPOSE 3305
 
 CMD echo "-----end-----"
 ```
+
+```dockerfile
+FROM centos
+MAINTAINER yewq<yewq1995@gmail.com>
+
+RUN cd /etc/yum.repos.d/
+RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+
+RUN yum -y install vim
+RUN yum -y install net-tools
+
+RUN mkdir /usr/local/nvm
+ENV NVM_DIR /usr/local/nvm 
+# ENV NVM_NODEJS_ORG_MIRROR https://registry.npm.taobao.org/
+
+USER $USERNAME
+# RUN Dockerfile 中的每一个都在不同的容器中执行。因此，如果您在容器中获取文件，则其内容在下一个容器中将不可用。
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash && . $NVM_DIR/nvm.sh && nvm install 12.16.3 && npm install -g yarn pm2 --registry=https://registry.npm.taobao.org
+
+EXPOSE 3305
+
+CMD echo "-----end-----"
+```
+
+
+
+#### 自定义镜像 tomcat
+
+1. 创建tomcat目录
+2. 将 JDK 和 tomcat 安装的压缩包拷贝进上一步目录
+3. Dockerfile
+
+```dockerfile
+FROM centos
+MAINTAINER yewq<yewq1995@gmail.com>
+
+RUN cd /etc/yum.repos.d/
+RUN sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+RUN sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+RUN yum -y install vim
+
+# 将java和tomcat 添加到容器 自动解压
+ADD jdk-8u202-linux-x64.tar.gz /usr/local 
+ADD apache-tomcat-9.0.63.tar.gz /usr/local
+
+# 配置工作目录, 并做登录点
+ENV MYPATH /usr/local
+WORKDIR $MYPATH
+
+# 配置java与tomcat环境变量
+ENV JAVA_HOME /usr/local/jdk1.8.0_202
+ENV CLASSPATH $JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+ENV CATALINA_HOME /usr/local/apache-tomcat-9.0.63
+ENV CATALINA_BASE /usr/local/apache-tomcat-9.0.63
+ENV PATH $PATH:$JAVA_HOME/bin:$CATALINA_HOME/lib:$CATALINA_HOME/bin
+
+EXPOSE 8080
+
+# 启动时运行tomcat
+CMD /usr/local/apache-tomcat-9.0.63/bin/startup.sh && tail -F /usr/local/apache-tomcat-9.0.63/bin/logs/catalina.out
+```
+
+4. 构建镜像
+
+```shell
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile/tomcat# vim Dockerfile 
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile/tomcat# docker build -t diytomcat:1.0 .
+...
+Successfully built 7b0320ead9e0
+Successfully tagged diytomcat:1.0
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile/tomcat# docker images
+REPOSITORY            TAG                 IMAGE ID            CREATED             SIZE
+diytomcat             1.0                 7b0320ead9e0        12 seconds ago      716MB
+```
+
+5. 启动容器
+
+```shell
+# 挂载输出 和 logs 在宿主机更新项目 备注：Docker挂载主机目录Docker访问出现cannot open directory .: Permission denied 解决办法：在挂载目录后多加一个--privileged=true参数即可
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile/tomcat# docker run -d -p 9090:8080 --name diytomcat -v /home/dockerfile/tomcat/test:/usr/local/apache-tomcat-9.0.63/webapps/test -v /home/dockerfile/tomcat/tomcat9logs:/usr/local/apache-tomcat-9.0.63/logs diytomcat:1.0
+```
+
+6. 验证测试访问！ curl localhost:9090 对外访问 开启iptables对应的端口. 安全组同理
+
+7. 发布测试web
+
+http://47.104.88.94:9090/test/a.jsp
+
+web.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xmlns="http://java.sun.com/xml/ns/javaee"
+xsi:schemaLocation="http://java.sun.com/xml/ns/javaee
+http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+id="WebApp_ID" version="2.5">
+<display-name>test</display-name>
+</web-app>
+```
+
+a.jsp
+
+```jsp
+<%@ page language="java" contentType="text/html; charset=UTF-8"
+pageEncoding="UTF-8"%>
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+"http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>hello，kuangshen</title>
+</head>
+<body>
+-----------welcome------------
+<%=" my docker tomcat，kuangshen666 "%>
+<br>
+<br>
+<% System.out.println("-------my docker tomcat-------");%>
+</body>
+</html>
+```
+
+
+
+### 发布镜像
+
+#### docker hub 
+
+1. 注册账号
+2. 登录hub 账号
+3. docker push 账号/镜像名:版本号
+
+```shell
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker login -u yewq1995
+Password: 
+Login Succeeded
+
+# 提交失败的情况
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker push yewq1995/nvm-test:1.0
+The push refers to repository [docker.io/yewq1995/nvm-test]
+An image does not exist locally with the tag: yewq1995/nvm-test
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker push --help
+
+Usage:	docker push [OPTIONS] NAME[:TAG]
+
+Push an image or a repository to a registry
+
+Options:
+      --disable-content-trust   Skip image signing (default true)
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker push nvm-test:1.0
+The push refers to repository [docker.io/library/nvm-test]
+14f9c7f19d0f: Preparing 
+9e1248254831: Preparing 
+ce959391544f: Preparing 
+fd2808809fd1: Preparing 
+ac517390d671: Preparing 
+e173d1cf2f4c: Waiting 
+74ddd0ec08fa: Waiting 
+denied: requested access to the resource is denied # 被拒绝
+
+# 解决方法. 重新书写TAG 带上账号
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker tag 704eff73191c yewq1995/nvm-test:1.0
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker images
+REPOSITORY            TAG                 IMAGE ID            CREATED             SIZE
+yewq1995/nvm-test     1.0                 704eff73191c        4 days ago          450MB
+
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker push yewq1995/nvm-test:1.0
+The push refers to repository [docker.io/yewq1995/nvm-test]
+14f9c7f19d0f: Pushing [>                                                  ]  2.147MB/124.1MB
+9e1248254831: Pushed 
+ce959391544f: Pushing [=====>                                             ]  3.239MB/28.36MB
+
+# 退出账号
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker logout
+Removing login credentials for https://index.docker.io/v1/
+```
+
+#### 阿里云镜像
+
+https://cr.console.aliyun.com/cn-hangzhou/instance/repositories
+
+阿里云账号, 个人空间
+
+1. 创建命名空间
+2. 创建镜像仓库
+3. ![image-20220606155322659](https://images.yewq.top/uPic/image-20220606155322659.png)
+
+
+
+### 小结
+
+![Docker小结（一）docker架构及常用命令– A box of chocolate](https://images.yewq.top/uPic/docker.png)
+
+docker中宿主机与容器（container）互相拷贝传递文件
+
+```shell
+# 宿主机运行
+docker cp
+
+# 从宿主机拷贝到容器
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker cp cp.txt nvm1.0:/usr/local/
+
+# 从容器里拷贝到宿主机
+root@iZm5e8kvgejp2ifut80lwyZ:/home/dockerfile# docker cp nvm1.0:/usr/local/cp.txt .
+```
+
+## Docker网络
+
+### 理解docker0
+
+\# 问题：Docker 是如何处理容器网络访问的？
+
+
+
+```shell
+# 服务器ip
+root@iZm5e8kvgejp2ifut80lwyZ:~# ip addr  
+# 本机回环地址
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+# 阿里云私有ip
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:16:3e:0a:37:8c brd ff:ff:ff:ff:ff:ff
+    inet 172.31.1.90/20 brd 172.31.15.255 scope global eth0
+       valid_lft forever preferred_lft forever
+# docker网桥
+3: docker0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:fc:95:d6:f2 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+       
+# 每启动一个容器，linux主机就会多了一个虚拟网卡。
+# 容器1
+17: vethcfb585b@if16: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master docker0 state UP group default 
+    link/ether 7e:e7:97:31:05:ee brd ff:ff:ff:ff:ff:ff
+# 容器2
+19: vethfbbbeaf@if18: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master docker0 state UP group default 
+    link/ether 46:42:dd:59:b4:bf brd ff:ff:ff:ff:ff:ff
+    
+# 容器1 16:eth0@if17
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker exec -it diytomcat ip addr  
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+16: eth0@if17: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:02 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.2/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+
+docker会给每个容器都分配一个ip，且容器和容器之间是可以互相访问的。
+
+我们可以测试下容器之间能不能ping通过：
+
+```shell
+# 思考，我们的linux服务器是否可以ping通容器内的tomcat ？  可以
+root@iZm5e8kvgejp2ifut80lwyZ:~# ping 172.17.0.2
+PING 172.17.0.2 (172.17.0.2) 56(84) bytes of data.
+64 bytes from 172.17.0.2: icmp_seq=1 ttl=64 time=0.071 ms
+64 bytes from 172.17.0.2: icmp_seq=2 ttl=64 time=0.074 ms
+# 容器2 18: eth0@if19
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker exec -it nvm1.0 ip addr
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+18: eth0@if19: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+
+```
+
+
+
+> 原理
+
+1、每一个安装了Docker的linux主机都有一个docker0的虚拟网卡。这是个桥接网卡，使用了veth-pair 技术！
+
+2、每启动一个容器，linux主机就会多了一个虚拟网卡. 
+
+![image-20220606190043708](https://images.yewq.top/uPic/image-20220606190043708.png)
+
+ 3、我们来测试下tomcat01和tomcat02容器间是否可以互相ping通  测试是可以的
+
+```shell
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker exec -it nvm1.0 ping 172.17.0.2
+PING 172.17.0.2 (172.17.0.2) 56(84) bytes of data.
+64 bytes from 172.17.0.2: icmp_seq=1 ttl=64 time=0.117 ms
+64 bytes from 172.17.0.2: icmp_seq=2 ttl=64 time=0.089 ms
+64 bytes from 172.17.0.2: icmp_seq=3 ttl=64 time=0.099 ms
+^C
+--- 172.17.0.2 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 1999ms
+rtt min/avg/max/mdev = 0.089/0.101/0.117/0.016 ms
+root@iZm5e8kvgejp2ifut80lwyZ:~# docker exec -it nvm1.0 ip addr 
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+18: eth0@if19: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether 02:42:ac:11:00:03 brd ff:ff:ff:ff:ff:ff link-netnsid 0
+    inet 172.17.0.3/16 brd 172.17.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+```
+
+网络模型图
+
+![image-20220606171012203](https://images.yewq.top/uPic/image-20220606171012203.png)
+
+> 小结
+
+Docker使用Linux桥接，在宿主机虚拟一个Docker容器网桥(docker0)，Docker启动一个容器时会根据 Docker网桥的网段分配给容器一个IP地址，称为Container-IP，同时Docker网桥是每个容器的默认网 关。因为在同一宿主机内的容器都接入同一个网桥，这样容器之间就能够通过容器的Container-IP直接 通信。
+
+![image-20220606190531637](https://images.yewq.top/uPic/image-20220606190531637.png)
+
+
+
+Docker容器网络就很好的利用了Linux虚拟网络技术，在本地主机和容器内分别创建一个虚拟接口，并 让他们彼此联通（这样一对接口叫**veth pair**）；
+
+ Docker中的网络接口默认都是虚拟的接口。虚拟接口的优势就是转发效率极高（因为Linux是在内核中 进行数据的复制来实现虚拟接口之间的数据转发，无需通过外部的网络设备交换），对于本地系统和容 器系统来说，虚拟接口跟一个正常的以太网卡相比并没有区别，只是他的速度快很多。
+
